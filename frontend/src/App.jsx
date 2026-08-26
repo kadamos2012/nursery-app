@@ -192,6 +192,41 @@ function SettingsSheet({ onClose, notifications }) {
 }
 
 // ---------------------------------------------------------------------------
+// Child switcher (for a parent linked to more than one child)
+// ---------------------------------------------------------------------------
+function ChildSwitcherSheet({ children, activeChildId, onSelect, onClose }) {
+  return (
+    <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 20, display: "flex", alignItems: "flex-end" }}>
+      <div style={{ background: "white", width: "100%", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20 }} dir="rtl">
+        <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 15, color: C.ink, marginBottom: 14 }}>أطفالي</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {children.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => { onSelect(c.id); onClose(); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 14,
+                border: c.id === activeChildId ? `2px solid ${C.primary}` : `1px solid ${C.line}`,
+                background: c.id === activeChildId ? C.primarySoft : "white", textAlign: "right",
+              }}
+            >
+              <Avatar size={38} letter={c.name?.[0] || "؟"} />
+              <div>
+                <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13.5, color: C.ink }}>{c.name}</div>
+                <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.inkSoft, marginTop: 1 }}>{c.class_name}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+        <button onClick={onClose} style={{ width: "100%", padding: 13, background: "none", border: `1px solid ${C.line}`, borderRadius: 12, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, marginTop: 16, color: C.inkSoft }}>
+          إغلاق
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Login
 // ---------------------------------------------------------------------------
 function LoginScreen({ apiFetch, onLoggedIn }) {
@@ -482,6 +517,7 @@ export default function App() {
   const notifications = useNotifications(apiFetch);
 
   const [showSettings, setShowSettings] = useState(false);
+  const [showChildSwitcher, setShowChildSwitcher] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [user, setUser] = useState(null);
   const [children, setChildren] = useState([]);
@@ -516,6 +552,14 @@ export default function App() {
         * { box-sizing: border-box; }`}</style>
 
       {showSettings && <SettingsSheet onClose={() => setShowSettings(false)} notifications={notifications} />}
+      {showChildSwitcher && (
+        <ChildSwitcherSheet
+          children={children}
+          activeChildId={childId}
+          onSelect={setChildId}
+          onClose={() => setShowChildSwitcher(false)}
+        />
+      )}
 
       {!authChecked ? (
         <Spinner label="بنتأكد من تسجيل الدخول..." />
@@ -525,10 +569,16 @@ export default function App() {
         <>
           <div style={{ background: C.primary, color: "white", padding: "18px 16px 22px", borderBottomLeftRadius: 22, borderBottomRightRadius: 22 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div>
-                <div style={{ fontFamily: bodyFont, fontSize: 12, opacity: 0.8 }}>{activeChild ? activeChild.class_name : "..."}</div>
-                <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 20, marginTop: 2 }}>{activeChild ? activeChild.name : "بنجيب بيانات طفلك"}</div>
-              </div>
+              <button
+                onClick={() => children.length > 1 && setShowChildSwitcher(true)}
+                style={{ background: "none", border: "none", textAlign: "right", padding: 0, cursor: children.length > 1 ? "pointer" : "default" }}
+              >
+                <div style={{ fontFamily: bodyFont, fontSize: 12, opacity: 0.8, display: "flex", alignItems: "center", gap: 4 }}>
+                  {activeChild ? activeChild.class_name : "..."}
+                  {children.length > 1 && <span style={{ fontSize: 10 }}>▾</span>}
+                </div>
+                <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 20, marginTop: 2, color: "white" }}>{activeChild ? activeChild.name : "بنجيب بيانات طفلك"}</div>
+              </button>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <button onClick={() => setShowSettings(true)} style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Settings size={15} color="white" />
