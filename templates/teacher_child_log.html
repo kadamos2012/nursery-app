@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تحديث {{ child.name }}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@700;800&family=Tajawal:wght@400;500;700&display=swap');
+    * { box-sizing: border-box; }
+    body { font-family: 'Tajawal', sans-serif; background: #F4F7F1; margin: 0; padding-bottom: 40px; }
+    header { background: #2F5D50; color: white; padding: 16px; display: flex; align-items: center; gap: 10px; }
+    header a { color: white; text-decoration: none; font-size: 18px; }
+    header h1 { font-family: 'Cairo', sans-serif; font-size: 16px; margin: 0; }
+    form { padding: 18px 16px; display: flex; flex-direction: column; gap: 20px; }
+    .section-label { font-size: 13px; font-weight: 700; color: #1F2A22; margin-bottom: 10px; display: block; }
+    .options { display: flex; gap: 8px; flex-wrap: wrap; }
+    .option {
+      flex: 1; min-width: 90px; text-align: center; padding: 12px 8px; border-radius: 12px;
+      border: 2px solid #E4E9E1; background: white; font-size: 13px; cursor: pointer; font-family: 'Tajawal', sans-serif;
+    }
+    .option input { display: none; }
+    .option:has(input:checked) { border-color: #2F5D50; background: #DCEAE3; color: #2F5D50; font-weight: 700; }
+    .mood-options .option { font-size: 22px; padding: 10px; flex: none; width: 56px; }
+    textarea {
+      width: 100%; padding: 12px 14px; border: 1px solid #E4E9E1; border-radius: 12px;
+      font-family: 'Tajawal', sans-serif; font-size: 14px; min-height: 90px; resize: vertical;
+    }
+    input[type=number] {
+      width: 100%; padding: 12px 14px; border: 1px solid #E4E9E1; border-radius: 12px; font-size: 14px; font-family: 'Tajawal', sans-serif;
+    }
+    button.save {
+      padding: 14px; background: #2F5D50; color: white; border: none; border-radius: 14px;
+      font-size: 15px; font-weight: 700; font-family: 'Tajawal', sans-serif; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="{{ url_for('teacher_dashboard') }}">→</a>
+    <h1>تحديث {{ child.name }} — النهاردة</h1>
+  </header>
+
+  <form method="POST">
+    <div>
+      <span class="section-label">المزاج</span>
+      <div class="options mood-options">
+        {% for emoji in ['😊','🙂','😐','😢','😴'] %}
+          <label class="option">
+            <input type="radio" name="mood" value="{{ emoji }}" {% if log.mood == emoji %}checked{% endif %}>
+            {{ emoji }}
+          </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div>
+      <span class="section-label">الأكل</span>
+      <div class="options">
+        {% for opt in ['اتاكلت كلها', 'نص الوجبة', 'رفض الأكل'] %}
+          <label class="option">
+            <input type="radio" name="meal_status" value="{{ opt }}" {% if log.meal_status == opt %}checked{% endif %}>
+            {{ opt }}
+          </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div>
+      <span class="section-label">مدة القيلولة (بالدقيقة)</span>
+      <input type="number" name="nap_minutes" placeholder="مثال: 120" value="{{ log.nap_minutes or '' }}">
+    </div>
+
+    <div>
+      <span class="section-label">ملاحظة لولي الأمر (اختياري)</span>
+      <textarea name="note" placeholder="اكتبي أي حاجة حابة تقوليها لولي الأمر...">{{ log.note or '' }}</textarea>
+    </div>
+
+    <button type="submit" class="save">حفظ التحديث</button>
+  </form>
+</body>
+</html>
