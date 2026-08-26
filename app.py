@@ -9,8 +9,10 @@ from flask_cors import CORS
 
 from models import (
     db, Nursery, SchoolClass, Teacher, Parent, Child, ParentChild,
-    DailyLog, AttendanceRecord, Payment, Message
+    DailyLog, AttendanceRecord, Payment, Message, PushSubscription
 )
+from pywebpush import webpush, WebPushException
+import json as json_lib
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-change-me")
@@ -21,6 +23,10 @@ if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
 app.config["SQLALCHEMY_DATABASE_URI"] = db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
+VAPID_CLAIMS = {"sub": os.environ.get("VAPID_CONTACT_EMAIL", "mailto:admin@example.com")}
 
 # Needed so the browser-based frontend (a different origin) can send the
 # session cookie back on each request once this is deployed.
@@ -55,6 +61,32 @@ def current_role():
 
 def child_belongs_to_parent(child_id, parent_id):
     return ParentChild.query.filter_by(child_id=child_id, parent_id=parent_id).first() is not None
+
+
+def notify_child_parents(child_id, title, body):
+    """Sends a Web Push notification to every parent linked to this child."""
+    if not VAPID_PRIVATE_KEY:
+        return  # push not configured yet
+
+    links = ParentChild.query.filter_by(child_id=child_id).all()
+    parent_ids = [l.parent_id for l in links]
+    subs = PushSubscription.query.filter(PushSubscription.parent_id.in_(parent_ids)).all()
+
+    for sub in subs:
+        try:
+            webpush(
+                subscription_info={
+                    "endpoint": sub.endpoint,
+                    "keys": {"p256dh": sub.p256dh, "auth": sub.auth},
+                },
+                data=json_lib.dumps({"title": title, "body": body}),
+                vapid_private_key=VAPID_PRIVATE_KEY,
+                vapid_claims=dict(VAPID_CLAIMS),
+            )
+        except WebPushException:
+            # subscription likely expired/revoked — remove it
+            db.session.delete(sub)
+    db.session.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -218,6 +250,11 @@ def child_messages(child_id):
         )
         db.session.add(msg)
         db.session.commit()
+
+        if current_role() == "teacher":
+            child = Child.query.get(child_id)
+            notify_child_parents(child_id, f"رسالة جديدة عن {child.name}", msg.text[:100])
+
         return jsonify({"ok": True, "id": msg.id})
 
     msgs = Message.query.filter_by(child_id=child_id).order_by(Message.timestamp).all()
@@ -226,6 +263,47 @@ def child_messages(child_id):
         "text": m.text,
         "timestamp": m.timestamp.isoformat(),
     } for m in msgs])
+
+
+# ---------------------------------------------------------------------------
+# Push notifications (Web Push API)
+# ---------------------------------------------------------------------------
+
+@app.route("/api/push/vapid-public-key")
+def push_public_key():
+    return jsonify({"publicKey": VAPID_PUBLIC_KEY})
+
+
+@app.route("/api/push/subscribe", methods=["POST"])
+@login_required
+def push_subscribe():
+    if current_role() != "parent":
+        return jsonify({"error": "غير مصرح"}), 403
+
+    data = request.get_json(force=True)
+    endpoint = data.get("endpoint")
+    keys = data.get("keys", {})
+
+    existing = PushSubscription.query.filter_by(endpoint=endpoint).first()
+    if existing:
+        existing.p256dh = keys.get("p256dh")
+        existing.auth = keys.get("auth")
+    else:
+        db.session.add(PushSubscription(
+            parent_id=current_user.id, endpoint=endpoint,
+            p256dh=keys.get("p256dh"), auth=keys.get("auth"),
+        ))
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/push/unsubscribe", methods=["POST"])
+@login_required
+def push_unsubscribe():
+    data = request.get_json(force=True)
+    PushSubscription.query.filter_by(endpoint=data.get("endpoint")).delete()
+    db.session.commit()
+    return jsonify({"ok": True})
 
 
 # ---------------------------------------------------------------------------
@@ -282,6 +360,7 @@ def teacher_child_log(child_id):
             log.nap_minutes = int(nap)
         log.updated_at = datetime.utcnow()
         db.session.commit()
+        notify_child_parents(child_id, f"تحديث جديد لـ {child.name}", "المعلمة حدّثت يوميات طفلك — افتحي التطبيق للتفاصيل")
         return redirect(url_for("teacher_dashboard"))
 
     return render_template("teacher_child_log.html", child=child, log=log)

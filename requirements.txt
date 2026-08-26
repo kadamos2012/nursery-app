@@ -5,3 +5,4 @@ Werkzeug==3.0.4
 gunicorn==22.0.0
 psycopg2-binary==2.9.9
 flask-cors==4.0.1
+pywebpush==2.0.1
