@@ -661,6 +661,9 @@ def teacher_child_log(child_id):
         return redirect(url_for("unified_login"))
 
     child = Child.query.get_or_404(child_id)
+    if current_user.class_id and child.class_id != current_user.class_id:
+        return redirect(url_for("teacher_dashboard"))
+
     today = date.today()
     log = DailyLog.query.filter_by(child_id=child_id, date=today).first()
     if not log:
@@ -694,6 +697,9 @@ def teacher_acknowledge_request(req_id):
         return redirect(url_for("unified_login"))
 
     req = SpecialRequest.query.get_or_404(req_id)
+    if current_user.class_id and req.child.class_id != current_user.class_id:
+        return redirect(url_for("teacher_dashboard"))
+
     req.status = "acknowledged"
     req.acknowledged_by_role = "teacher"
     req.acknowledged_by_name = current_user.name
