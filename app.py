@@ -1056,6 +1056,29 @@ def db_init():
     print("تم التأكد من وجود الجداول.")
 
 
+@app.route("/internal/generate-monthly-tuition")
+def http_generate_monthly_tuition():
+    """Triggered by a free external scheduler (e.g. cron-job.org) on day 1 of each
+    month. Protected by a secret key so it can't be called by anyone else."""
+    key = request.args.get("key")
+    expected_key = os.environ.get("INTERNAL_TASK_KEY")
+    if not expected_key or key != expected_key:
+        return "غير مصرح", 403
+
+    today = date.today()
+    children = Child.query.filter_by(archived=False).all()
+    created = 0
+    for child in children:
+        existing = Payment.query.filter_by(child_id=child.id, month=today.month, year=today.year).first()
+        if existing:
+            continue
+        expected = compute_child_expected_fee(child)
+        db.session.add(Payment(child_id=child.id, month=today.month, year=today.year, amount=expected, paid=False))
+        created += 1
+    db.session.commit()
+    return {"created": created, "month": today.month, "year": today.year}
+
+
 @app.cli.command("generate-monthly-tuition")
 def generate_monthly_tuition():
     """Creates this month's tuition Payment record for every active (non-archived) child,
