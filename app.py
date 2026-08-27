@@ -444,9 +444,9 @@ def unified_login():
             login_user(parent)
             return redirect(FRONTEND_URL)
 
-        return render_template("login.html", error="رقم الهاتف أو كلمة المرور غير صحيحة")
+        return render_template("login.html", error="رقم الهاتف أو كلمة المرور غير صحيحة", nursery=Nursery.query.first())
 
-    return render_template("login.html", error=None)
+    return render_template("login.html", error=None, nursery=Nursery.query.first())
 
 
 @app.route("/teacher")
@@ -519,6 +519,56 @@ def teacher_birthdays():
     birthday_kids.sort(key=lambda c: c.birth_date.day)
 
     return render_template("teacher_birthdays.html", children=birthday_kids, today=today)
+
+
+@app.route("/owner/settings", methods=["GET", "POST"])
+@login_required
+def owner_settings():
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    nursery = Nursery.query.get_or_404(current_user.nursery_id)
+
+    if request.method == "POST":
+        nursery.facebook_url = request.form.get("facebook_url", "").strip() or None
+        nursery.instagram_url = request.form.get("instagram_url", "").strip() or None
+        nursery.tiktok_url = request.form.get("tiktok_url", "").strip() or None
+
+        logo_file = request.files.get("logo")
+        if logo_file and logo_file.filename:
+            raw = logo_file.read()
+            if len(raw) > 2 * 1024 * 1024:
+                return render_template("owner_settings.html", nursery=nursery, error="حجم اللوجو كبير أوي، اختاري صورة أصغر من 2 ميجا")
+            nursery.logo_data = base64.b64encode(raw).decode("ascii")
+            nursery.logo_mime = logo_file.mimetype or "image/png"
+
+        db.session.commit()
+        return redirect(url_for("owner_settings"))
+
+    return render_template("owner_settings.html", nursery=nursery, error=None)
+
+
+@app.route("/nursery/logo")
+def nursery_logo():
+    nursery = Nursery.query.first()
+    if not nursery or not nursery.logo_data:
+        return "", 404
+    raw = base64.b64decode(nursery.logo_data)
+    return app.response_class(raw, mimetype=nursery.logo_mime or "image/png")
+
+
+@app.route("/api/nursery/branding")
+def api_nursery_branding():
+    nursery = Nursery.query.first()
+    if not nursery:
+        return jsonify({})
+    return jsonify({
+        "name": nursery.name,
+        "logo_url": url_for("nursery_logo", _external=True) if nursery.logo_data else None,
+        "facebook_url": nursery.facebook_url,
+        "instagram_url": nursery.instagram_url,
+        "tiktok_url": nursery.tiktok_url,
+    })
 
 
 @app.route("/owner")

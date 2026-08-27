@@ -234,6 +234,11 @@ function LoginScreen({ apiFetch, onLoggedIn }) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [branding, setBranding] = useState(null);
+
+  useEffect(() => {
+    apiFetch("/api/nursery/branding").then(setBranding).catch(() => {});
+  }, [apiFetch]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -255,8 +260,14 @@ function LoginScreen({ apiFetch, onLoggedIn }) {
   return (
     <div dir="rtl" style={{ display: "flex", flexDirection: "column", justifyContent: "center", flex: 1, padding: 24, background: C.bg }}>
       <div style={{ textAlign: "center", marginBottom: 26 }}>
-        <Avatar size={56} letter="👋" />
-        <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 19, color: C.ink, marginTop: 12 }}>أهلاً بيكي</div>
+        {branding?.logo_url ? (
+          <img src={branding.logo_url} alt={branding.name} style={{ width: 64, height: 64, borderRadius: 16, objectFit: "cover" }} />
+        ) : (
+          <Avatar size={56} letter="👋" />
+        )}
+        <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 19, color: C.ink, marginTop: 12 }}>
+          {branding?.name || "أهلاً بيكي"}
+        </div>
         <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.inkSoft, marginTop: 4 }}>سجلي دخولك لمتابعة طفلك</div>
       </div>
 
@@ -280,6 +291,20 @@ function LoginScreen({ apiFetch, onLoggedIn }) {
           {loading ? "جاري الدخول..." : "دخول"}
         </button>
       </form>
+
+      {branding && (branding.facebook_url || branding.instagram_url || branding.tiktok_url) && (
+        <div style={{ display: "flex", justifyContent: "center", gap: 14, marginTop: 26 }}>
+          {branding.facebook_url && (
+            <a href={branding.facebook_url} target="_blank" rel="noreferrer" style={{ width: 36, height: 36, borderRadius: "50%", background: C.primarySoft, display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none", fontSize: 16 }}>📘</a>
+          )}
+          {branding.instagram_url && (
+            <a href={branding.instagram_url} target="_blank" rel="noreferrer" style={{ width: 36, height: 36, borderRadius: "50%", background: C.honeySoft, display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none", fontSize: 16 }}>📷</a>
+          )}
+          {branding.tiktok_url && (
+            <a href={branding.tiktok_url} target="_blank" rel="noreferrer" style={{ width: 36, height: 36, borderRadius: "50%", background: C.coralSoft, display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none", fontSize: 16 }}>🎵</a>
+          )}
+        </div>
+      )}
     </div>
   );
 }

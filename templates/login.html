@@ -34,12 +34,19 @@
       border-radius: 12px; font-family: 'Tajawal', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer;
     }
     .error { background: #F8DFD9; color: #B23A22; padding: 10px 12px; border-radius: 10px; font-size: 13px; margin-bottom: 16px; text-align: right; }
+    .social { display: flex; justify-content: center; gap: 14px; margin-top: 24px; }
+    .social a { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: #F4F7F1; text-decoration: none; }
+    .social img { width: 18px; height: 18px; }
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="logo">K</div>
-    <h1>Kinder Care</h1>
+    {% if nursery and nursery.logo_data %}
+      <img src="{{ url_for('nursery_logo') }}" alt="{{ nursery.name }}" style="max-width: 90px; max-height: 90px; border-radius: 16px; margin: 0 auto 14px;">
+    {% else %}
+      <div class="logo">K</div>
+    {% endif %}
+    <h1>{{ nursery.name if nursery else 'Kinder Care' }}</h1>
     <p class="sub">سجّلي دخولك — هنوديكي تلقائياً لقسمك</p>
     {% if error %}<div class="error">{{ error }}</div>{% endif %}
     <form method="POST">
@@ -49,6 +56,26 @@
       <input type="password" name="password" required>
       <button type="submit">دخول</button>
     </form>
+
+    {% if nursery and (nursery.facebook_url or nursery.instagram_url or nursery.tiktok_url) %}
+    <div class="social">
+      {% if nursery.facebook_url %}
+      <a href="{{ nursery.facebook_url }}" target="_blank" style="background:#DCEAE3;">
+        <span style="font-size:16px;">📘</span>
+      </a>
+      {% endif %}
+      {% if nursery.instagram_url %}
+      <a href="{{ nursery.instagram_url }}" target="_blank" style="background:#FBEBCB;">
+        <span style="font-size:16px;">📷</span>
+      </a>
+      {% endif %}
+      {% if nursery.tiktok_url %}
+      <a href="{{ nursery.tiktok_url }}" target="_blank" style="background:#F8DFD9;">
+        <span style="font-size:16px;">🎵</span>
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
 </body>
 </html>

@@ -1,0 +1,36 @@
+{% extends "owner_base.html" %}
+{% block header_title %}إعدادات الحضانة{% endblock %}
+{% set active = "settings" %}
+{% block content %}
+{% if error %}<div class="card" style="background:#F8DFD9;color:#B23A22;">{{ error }}</div>{% endif %}
+
+<div class="card" style="text-align: center;">
+  {% if nursery.logo_data %}
+    <img src="{{ url_for('nursery_logo') }}" alt="{{ nursery.name }}" style="max-width: 140px; max-height: 140px; border-radius: 16px; margin-bottom: 10px;">
+  {% else %}
+    <div style="width: 100px; height: 100px; border-radius: 50%; background: #DCEAE3; color: #2F5D50; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-family: 'Cairo', sans-serif; font-weight: 800; font-size: 32px;">
+      {{ nursery.name[0] }}
+    </div>
+  {% endif %}
+  <div style="font-family: 'Cairo', sans-serif; font-weight: 700;">{{ nursery.name }}</div>
+</div>
+
+<div class="card">
+  <h2>لوجو الحضانة</h2>
+  <form class="inline" method="POST" enctype="multipart/form-data">
+    <input type="file" name="logo" accept="image/*">
+
+    <h2 style="margin-top: 14px;">روابط السوشيال ميديا</h2>
+    <label style="font-size: 12px; color: #5B6B5E;">فيسبوك</label>
+    <input type="url" name="facebook_url" value="{{ nursery.facebook_url or '' }}" placeholder="https://facebook.com/...">
+
+    <label style="font-size: 12px; color: #5B6B5E;">إنستجرام</label>
+    <input type="url" name="instagram_url" value="{{ nursery.instagram_url or '' }}" placeholder="https://instagram.com/...">
+
+    <label style="font-size: 12px; color: #5B6B5E;">تيك توك</label>
+    <input type="url" name="tiktok_url" value="{{ nursery.tiktok_url or '' }}" placeholder="https://tiktok.com/@...">
+
+    <button type="submit" class="primary">حفظ</button>
+  </form>
+</div>
+{% endblock %}

@@ -10,6 +10,12 @@ db = SQLAlchemy()
 class Nursery(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), nullable=False)
+    logo_data = db.Column(db.Text, nullable=True)   # base64-encoded image
+    logo_mime = db.Column(db.String(50), nullable=True)
+    facebook_url = db.Column(db.String(255), nullable=True)
+    instagram_url = db.Column(db.String(255), nullable=True)
+    tiktok_url = db.Column(db.String(255), nullable=True)
+
     classes = db.relationship("SchoolClass", backref="nursery", lazy=True)
     teachers = db.relationship("Teacher", backref="nursery", lazy=True)
 
