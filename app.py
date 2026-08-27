@@ -49,7 +49,7 @@ db.init_app(app)
 # Telegram bot (free alternative notification channel)
 # ---------------------------------------------------------------------------
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_BOT_USERNAME = os.environ.get("TELEGRAM_BOT_USERNAME", "")
+TELEGRAM_BOT_USERNAME = ""  # fetched automatically at startup via getMe
 BACKEND_URL = os.environ.get("BACKEND_URL") or os.environ.get("RENDER_EXTERNAL_URL", "")
 
 
@@ -67,18 +67,26 @@ def send_telegram_message(chat_id, text):
 
 
 def setup_telegram_webhook():
-    """Registers our webhook URL with Telegram so it forwards bot messages to us.
+    """Registers our webhook URL with Telegram and fetches the bot's username.
     Safe to call on every startup — Telegram just re-confirms the same URL."""
-    if not TELEGRAM_BOT_TOKEN or not BACKEND_URL:
+    global TELEGRAM_BOT_USERNAME
+    if not TELEGRAM_BOT_TOKEN:
         return
     try:
-        requests.post(
-            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook",
-            json={"url": f"{BACKEND_URL.rstrip('/')}/telegram/webhook"},
-            timeout=8,
-        )
+        resp = requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getMe", timeout=8)
+        TELEGRAM_BOT_USERNAME = resp.json().get("result", {}).get("username", "")
     except Exception:
         pass
+
+    if BACKEND_URL:
+        try:
+            requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook",
+                json={"url": f"{BACKEND_URL.rstrip('/')}/telegram/webhook"},
+                timeout=8,
+            )
+        except Exception:
+            pass
 
 
 with app.app_context():
