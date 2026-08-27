@@ -34,6 +34,7 @@ class Teacher(UserMixin, db.Model):
     phone = db.Column(db.String(30), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     class_id = db.Column(db.Integer, db.ForeignKey("school_class.id"), nullable=True)  # deprecated, kept for old data
+    employee_id = db.Column(db.Integer, db.ForeignKey("employee.id"), nullable=True)  # links login to payroll record
 
     classes = db.relationship("TeacherClass", backref="teacher", lazy=True, cascade="all, delete-orphan")
 
@@ -131,11 +132,66 @@ class DailyLog(db.Model):
     __table_args__ = (db.UniqueConstraint("child_id", "date", name="uq_child_date"),)
 
 
+class StaffCredential(db.Model):
+    """A certification/credential for an employee (first aid, background check, etc.)
+    with an expiry date so the owner gets visibility before it lapses."""
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey("employee.id"), nullable=False)
+    title = db.Column(db.String(150), nullable=False)
+    issue_date = db.Column(db.Date, nullable=True)
+    expiry_date = db.Column(db.Date, nullable=True)
+
+    employee = db.relationship("Employee")
+
+
+class StaffTimeClock(db.Model):
+    """Daily clock-in/out for a staff member."""
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey("employee.id"), nullable=False)
+    date = db.Column(db.Date, nullable=False, default=date.today)
+    clock_in = db.Column(db.DateTime, nullable=True)
+    clock_out = db.Column(db.DateTime, nullable=True)
+
+    employee = db.relationship("Employee")
+    __table_args__ = (db.UniqueConstraint("employee_id", "date", name="uq_timeclock_emp_date"),)
+
+
+class DevelopmentalMilestone(db.Model):
+    """A documented observation of a child's developmental progress in a specific
+    domain (motor, language, social, cognitive), logged by the teacher over time."""
+    id = db.Column(db.Integer, primary_key=True)
+    child_id = db.Column(db.Integer, db.ForeignKey("child.id"), nullable=False)
+    domain = db.Column(db.String(30), nullable=False)  # "motor" | "language" | "social" | "cognitive" | "self_care"
+    title = db.Column(db.String(200), nullable=False)
+    note = db.Column(db.Text, nullable=True)
+    date = db.Column(db.Date, nullable=False, default=date.today)
+    logged_by_teacher_id = db.Column(db.Integer, db.ForeignKey("teacher.id"), nullable=True)
+
+    child = db.relationship("Child")
+
+
+class PickupPerson(db.Model):
+    """Someone authorized to pick up a child, besides the registered parents."""
+    id = db.Column(db.Integer, primary_key=True)
+    child_id = db.Column(db.Integer, db.ForeignKey("child.id"), nullable=False)
+    name = db.Column(db.String(150), nullable=False)
+    relation = db.Column(db.String(100), nullable=True)  # e.g. "الجدة", "السائق"
+    phone = db.Column(db.String(30), nullable=True)
+
+    child = db.relationship("Child")
+
+
 class AttendanceRecord(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     child_id = db.Column(db.Integer, db.ForeignKey("child.id"), nullable=False)
     date = db.Column(db.Date, nullable=False, default=date.today)
     present = db.Column(db.Boolean, default=True)
+
+    check_in_time = db.Column(db.DateTime, nullable=True)
+    check_in_signed_by = db.Column(db.String(150), nullable=True)  # name of who dropped off
+    check_out_time = db.Column(db.DateTime, nullable=True)
+    check_out_signed_by = db.Column(db.String(150), nullable=True)  # name of who picked up
+    check_out_signature = db.Column(db.Text, nullable=True)  # base64 signature image, optional
 
     __table_args__ = (db.UniqueConstraint("child_id", "date", name="uq_attendance_child_date"),)
 
@@ -198,6 +254,26 @@ class Owner(UserMixin, db.Model):
 
     def get_id(self):
         return f"owner:{self.id}"
+
+
+class SalaryHistory(db.Model):
+    """Tracks salary changes over time. The record with end_date=None is the
+    currently active rate; past rates are preserved with their date range."""
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey("employee.id"), nullable=False)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=True)  # None = still active
+
+
+class FeeHistory(db.Model):
+    """Tracks a child's subscription fee changes over time, same pattern as SalaryHistory."""
+    id = db.Column(db.Integer, primary_key=True)
+    child_id = db.Column(db.Integer, db.ForeignKey("child.id"), nullable=False)
+    subscription_type = db.Column(db.String(20), nullable=False)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=True)
 
 
 class Employee(db.Model):
@@ -304,7 +380,8 @@ class EnrollmentRequest(db.Model):
     child_name = db.Column(db.String(150), nullable=True)
     child_birth_date = db.Column(db.Date, nullable=True)
     notes = db.Column(db.Text, nullable=True)
-    status = db.Column(db.String(20), nullable=False, default="new")  # "new" | "contacted" | "accepted" | "rejected"
+    status = db.Column(db.String(20), nullable=False, default="new")  # "new" | "contacted" | "tour_scheduled" | "accepted" | "rejected"
+    tour_date = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -331,6 +408,7 @@ class WeeklyScheduleItem(db.Model):
     time_label = db.Column(db.String(30), nullable=True)  # e.g. "9:00 - 9:30"
     activity = db.Column(db.String(150), nullable=False)
     icon = db.Column(db.String(10), nullable=True)  # an emoji, optional
+    learning_objective = db.Column(db.String(255), nullable=True)  # e.g. "تنمية المهارات الحركية الدقيقة"
     sort_order = db.Column(db.Integer, nullable=False, default=0)
 
     school_class = db.relationship("SchoolClass")

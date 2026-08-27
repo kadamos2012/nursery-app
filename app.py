@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, date, time as dtime
+from datetime import datetime, date, time as dtime, timedelta
 
 from flask import Flask, request, jsonify, render_template, redirect, url_for, session
 from flask_login import (
@@ -13,7 +13,9 @@ from models import (
     Owner, Employee, SalaryPayment, Expense, Activity, Addon, ChildAddon,
     PaymentMethod, Advance, ExpenseCategory, Announcement,
     Trip, TripCostItem, TripClass, TripRegistration,
-    EnrollmentRequest, ClassPhoto, SpecialRequest, TeacherClass, WeeklyScheduleItem, DailyTask
+    EnrollmentRequest, ClassPhoto, SpecialRequest, TeacherClass, WeeklyScheduleItem,
+    DailyTask, SalaryHistory, FeeHistory, PickupPerson, StaffCredential, StaffTimeClock,
+    DevelopmentalMilestone
 )
 from pywebpush import webpush, WebPushException
 import json as json_lib
@@ -122,9 +124,61 @@ def current_role():
     return "parent"
 
 
-def compute_child_expected_fee(child):
+def get_effective_salary(employee_id, on_date=None):
+    on_date = on_date or date.today()
+    record = SalaryHistory.query.filter(
+        SalaryHistory.employee_id == employee_id, SalaryHistory.start_date <= on_date,
+        (SalaryHistory.end_date.is_(None)) | (SalaryHistory.end_date >= on_date),
+    ).order_by(SalaryHistory.start_date.desc()).first()
+    if record:
+        return float(record.amount)
+    employee = Employee.query.get(employee_id)
+    return float(employee.monthly_salary) if employee else 0.0
+
+
+def set_effective_salary(employee_id, new_amount, start_date):
+    """Closes the currently-open salary record (if any) the day before the new
+    rate starts, and opens a new one. Preserves full history."""
+    current = SalaryHistory.query.filter_by(employee_id=employee_id, end_date=None).first()
+    if current:
+        if start_date <= current.start_date:
+            db.session.delete(current)  # correcting a record that never took effect
+        else:
+            current.end_date = start_date - timedelta(days=1)
+    db.session.add(SalaryHistory(employee_id=employee_id, amount=new_amount, start_date=start_date, end_date=None))
+    employee = Employee.query.get(employee_id)
+    employee.monthly_salary = new_amount
+
+
+def get_effective_fee(child_id, on_date=None):
+    on_date = on_date or date.today()
+    record = FeeHistory.query.filter(
+        FeeHistory.child_id == child_id, FeeHistory.start_date <= on_date,
+        (FeeHistory.end_date.is_(None)) | (FeeHistory.end_date >= on_date),
+    ).order_by(FeeHistory.start_date.desc()).first()
+    if record:
+        return float(record.amount), record.subscription_type
+    child = Child.query.get(child_id)
+    return (float(child.monthly_fee), child.subscription_type) if child else (0.0, "full_time")
+
+
+def set_effective_fee(child_id, new_amount, subscription_type, start_date):
+    current = FeeHistory.query.filter_by(child_id=child_id, end_date=None).first()
+    if current:
+        if start_date <= current.start_date:
+            db.session.delete(current)
+        else:
+            current.end_date = start_date - timedelta(days=1)
+    db.session.add(FeeHistory(child_id=child_id, amount=new_amount, subscription_type=subscription_type, start_date=start_date, end_date=None))
+    child = Child.query.get(child_id)
+    child.monthly_fee = new_amount
+    child.subscription_type = subscription_type
+
+
+def compute_child_expected_fee(child, on_date=None):
+    base_fee, _ = get_effective_fee(child.id, on_date)
     addons_total = sum(float(ca.addon.monthly_fee) for ca in ChildAddon.query.filter_by(child_id=child.id).all())
-    subtotal = float(child.monthly_fee) + addons_total
+    subtotal = base_fee + addons_total
     if child.discount_type == "fixed":
         discount = float(child.discount_value)
     elif child.discount_type == "percent":
@@ -524,6 +578,7 @@ def child_weekly_schedule(child_id):
     for item in items:
         by_day[item.day_of_week].append({
             "time_label": item.time_label, "activity": item.activity, "icon": item.icon,
+            "learning_objective": item.learning_objective,
         })
 
     day_names = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
@@ -556,6 +611,19 @@ def child_tasks_today(child_id):
         "is_personal": t.child_id is not None, "completed": t.completed,
         "completed_by_name": t.completed_by_name,
     } for t in tasks])
+
+
+@app.route("/api/child/<int:child_id>/milestones")
+@login_required
+def child_milestones_api(child_id):
+    if current_role() == "parent" and not child_belongs_to_parent(child_id, current_user.id):
+        return jsonify({"error": "غير مصرح"}), 403
+
+    milestones = DevelopmentalMilestone.query.filter_by(child_id=child_id).order_by(DevelopmentalMilestone.date.desc()).limit(20).all()
+    return jsonify([{
+        "id": m.id, "domain": MILESTONE_DOMAINS.get(m.domain, m.domain), "title": m.title,
+        "note": m.note, "date": m.date.isoformat(),
+    } for m in milestones])
 
 
 @app.route("/api/child/<int:child_id>/messages", methods=["GET", "POST"])
@@ -735,6 +803,86 @@ def teacher_dashboard():
     )
 
 
+@app.route("/teacher/child/<int:child_id>/checkin", methods=["POST"])
+@login_required
+def teacher_checkin(child_id):
+    if current_role() != "teacher":
+        return redirect(url_for("unified_login"))
+
+    child = Child.query.get_or_404(child_id)
+    class_ids = teacher_class_ids(current_user)
+    if class_ids and child.class_id not in class_ids:
+        return redirect(url_for("teacher_dashboard"))
+
+    signed_by = request.form.get("signed_by", "").strip()
+    today = date.today()
+    record = AttendanceRecord.query.filter_by(child_id=child_id, date=today).first()
+    if not record:
+        record = AttendanceRecord(child_id=child_id, date=today, present=True)
+        db.session.add(record)
+    record.present = True
+    record.check_in_time = datetime.utcnow()
+    record.check_in_signed_by = signed_by or "غير محدد"
+    db.session.commit()
+    return redirect(url_for("teacher_child_log", child_id=child_id))
+
+
+@app.route("/teacher/child/<int:child_id>/checkout", methods=["POST"])
+@login_required
+def teacher_checkout(child_id):
+    if current_role() != "teacher":
+        return redirect(url_for("unified_login"))
+
+    child = Child.query.get_or_404(child_id)
+    class_ids = teacher_class_ids(current_user)
+    if class_ids and child.class_id not in class_ids:
+        return redirect(url_for("teacher_dashboard"))
+
+    signed_by = request.form.get("signed_by", "").strip()
+    today = date.today()
+    record = AttendanceRecord.query.filter_by(child_id=child_id, date=today).first()
+    if record:
+        record.check_out_time = datetime.utcnow()
+        record.check_out_signed_by = signed_by or "غير محدد"
+        db.session.commit()
+        notify_child_parents(child_id, "تم الانصراف", f"{child.name} خرج من الحضانة مع {signed_by or 'غير محدد'}")
+    return redirect(url_for("teacher_child_log", child_id=child_id))
+
+
+MILESTONE_DOMAINS = {
+    "motor": "المهارات الحركية", "language": "اللغة والتواصل",
+    "social": "المهارات الاجتماعية", "cognitive": "المهارات الذهنية", "self_care": "الاعتماد على النفس",
+}
+
+
+@app.route("/teacher/child/<int:child_id>/milestones", methods=["GET", "POST"])
+@login_required
+def teacher_child_milestones(child_id):
+    if current_role() != "teacher":
+        return redirect(url_for("unified_login"))
+
+    child = Child.query.get_or_404(child_id)
+    class_ids = teacher_class_ids(current_user)
+    if class_ids and child.class_id not in class_ids:
+        return redirect(url_for("teacher_dashboard"))
+
+    if request.method == "POST":
+        domain = request.form.get("domain")
+        title = request.form.get("title", "").strip()
+        note = request.form.get("note", "").strip()
+        if domain and title:
+            db.session.add(DevelopmentalMilestone(
+                child_id=child_id, domain=domain, title=title, note=note,
+                logged_by_teacher_id=current_user.id,
+            ))
+            db.session.commit()
+            notify_child_parents(child_id, "إنجاز جديد 🌟", f"{child.name}: {title}")
+        return redirect(url_for("teacher_child_milestones", child_id=child_id))
+
+    milestones = DevelopmentalMilestone.query.filter_by(child_id=child_id).order_by(DevelopmentalMilestone.date.desc()).all()
+    return render_template("teacher_milestones.html", child=child, milestones=milestones, domains=MILESTONE_DOMAINS)
+
+
 @app.route("/teacher/child/<int:child_id>/log", methods=["GET", "POST"])
 @login_required
 def teacher_child_log(child_id):
@@ -766,9 +914,14 @@ def teacher_child_log(child_id):
         notify_child_parents(child_id, f"تحديث جديد لـ {child.name}", "المعلمة حدّثت يوميات طفلك — افتحي التطبيق للتفاصيل")
         return redirect(url_for("teacher_dashboard"))
 
+    attendance = AttendanceRecord.query.filter_by(child_id=child_id, date=today).first()
+    parent_names = [Parent.query.get(pc.parent_id).name for pc in ParentChild.query.filter_by(child_id=child_id).all()]
+    pickup_names = [p.name for p in PickupPerson.query.filter_by(child_id=child_id).all()]
+
     return render_template(
         "teacher_child_log.html", child=child, log=log,
         special_requests=SpecialRequest.query.filter_by(child_id=child_id, status="pending").order_by(SpecialRequest.date).all(),
+        attendance=attendance, authorized_names=parent_names + pickup_names,
     )
 
 
@@ -908,8 +1061,11 @@ def owner_enrollment_requests():
     if request.method == "POST":
         request_id = request.form.get("request_id")
         new_status = request.form.get("status")
+        tour_date = request.form.get("tour_date")
         req = EnrollmentRequest.query.get_or_404(request_id)
         req.status = new_status
+        if tour_date:
+            req.tour_date = datetime.fromisoformat(tour_date)
         db.session.commit()
         return redirect(url_for("owner_enrollment_requests"))
 
@@ -1272,11 +1428,12 @@ def owner_class_schedule(class_id):
         time_label = request.form.get("time_label", "").strip()
         activity = request.form.get("activity", "").strip()
         icon = request.form.get("icon", "").strip()
+        learning_objective = request.form.get("learning_objective", "").strip()
         if activity:
             count_today = WeeklyScheduleItem.query.filter_by(class_id=class_id, day_of_week=day).count()
             db.session.add(WeeklyScheduleItem(
                 class_id=class_id, day_of_week=day, time_label=time_label,
-                activity=activity, icon=icon, sort_order=count_today,
+                activity=activity, icon=icon, learning_objective=learning_objective, sort_order=count_today,
             ))
             db.session.commit()
         return redirect(url_for("owner_class_schedule", class_id=class_id))
@@ -1393,11 +1550,12 @@ def owner_teachers():
         phone = request.form.get("phone", "").strip()
         password = request.form.get("password", "").strip()
         class_ids = request.form.getlist("class_ids")
+        employee_id = request.form.get("employee_id") or None
 
         if name and phone and password:
             existing = Teacher.query.filter_by(phone=phone).first()
             if not existing:
-                teacher = Teacher(nursery_id=current_user.nursery_id, name=name, phone=phone)
+                teacher = Teacher(nursery_id=current_user.nursery_id, name=name, phone=phone, employee_id=employee_id)
                 teacher.set_password(password)
                 db.session.add(teacher)
                 db.session.flush()
@@ -1408,10 +1566,23 @@ def owner_teachers():
 
     teachers = Teacher.query.all()
     classes = SchoolClass.query.all()
+    employees = Employee.query.filter_by(active=True).all()
     assigned_by_teacher = {
         t.id: teacher_class_ids(t) for t in teachers
     }
-    return render_template("owner_teachers.html", teachers=teachers, classes=classes, assigned_by_teacher=assigned_by_teacher)
+    return render_template("owner_teachers.html", teachers=teachers, classes=classes, employees=employees, assigned_by_teacher=assigned_by_teacher)
+
+
+@app.route("/owner/teachers/<int:teacher_id>/link-employee", methods=["POST"])
+@login_required
+def owner_link_teacher_employee(teacher_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    teacher = Teacher.query.get_or_404(teacher_id)
+    teacher.employee_id = request.form.get("employee_id") or None
+    db.session.commit()
+    return redirect(url_for("owner_teachers"))
 
 
 @app.route("/owner/teachers/<int:teacher_id>/classes", methods=["POST"])
@@ -1427,6 +1598,104 @@ def owner_update_teacher_classes(teacher_id):
         db.session.add(TeacherClass(teacher_id=teacher_id, class_id=int(cid)))
     db.session.commit()
     return redirect(url_for("owner_teachers"))
+
+
+@app.route("/owner/staff/<int:employee_id>/salary-history", methods=["GET", "POST"])
+@login_required
+def owner_salary_history(employee_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    employee = Employee.query.get_or_404(employee_id)
+
+    if request.method == "POST":
+        amount = request.form.get("amount")
+        start = request.form.get("start_date") or date.today().isoformat()
+        if amount:
+            set_effective_salary(employee_id, float(amount), date.fromisoformat(start))
+            db.session.commit()
+        return redirect(url_for("owner_salary_history", employee_id=employee_id))
+
+    history = SalaryHistory.query.filter_by(employee_id=employee_id).order_by(SalaryHistory.start_date.desc()).all()
+    return render_template("owner_salary_history.html", employee=employee, history=history, today=date.today())
+
+
+@app.route("/owner/staff/<int:employee_id>/credentials", methods=["GET", "POST"])
+@login_required
+def owner_staff_credentials(employee_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    employee = Employee.query.get_or_404(employee_id)
+
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        issue_date = request.form.get("issue_date") or None
+        expiry_date = request.form.get("expiry_date") or None
+        if title:
+            db.session.add(StaffCredential(
+                employee_id=employee_id, title=title,
+                issue_date=date.fromisoformat(issue_date) if issue_date else None,
+                expiry_date=date.fromisoformat(expiry_date) if expiry_date else None,
+            ))
+            db.session.commit()
+        return redirect(url_for("owner_staff_credentials", employee_id=employee_id))
+
+    credentials = StaffCredential.query.filter_by(employee_id=employee_id).order_by(StaffCredential.expiry_date).all()
+    today = date.today()
+    return render_template("owner_staff_credentials.html", employee=employee, credentials=credentials, today=today)
+
+
+@app.route("/owner/credentials-overview")
+@login_required
+def owner_credentials_overview():
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    today = date.today()
+    soon = today + timedelta(days=30)
+    expiring = StaffCredential.query.filter(
+        StaffCredential.expiry_date.isnot(None), StaffCredential.expiry_date <= soon
+    ).order_by(StaffCredential.expiry_date).all()
+    return render_template("owner_credentials_overview.html", expiring=expiring, today=today)
+
+
+@app.route("/owner/staff/<int:employee_id>/timeclock")
+@login_required
+def owner_staff_timeclock(employee_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    employee = Employee.query.get_or_404(employee_id)
+    records = StaffTimeClock.query.filter_by(employee_id=employee_id).order_by(StaffTimeClock.date.desc()).limit(31).all()
+    return render_template("owner_staff_timeclock.html", employee=employee, records=records)
+
+
+@app.route("/teacher/timeclock", methods=["GET", "POST"])
+@login_required
+def teacher_timeclock():
+    if current_role() != "teacher":
+        return redirect(url_for("unified_login"))
+
+    if not current_user.employee_id:
+        return render_template("teacher_timeclock.html", record=None, today=date.today(), not_linked=True)
+
+    today = date.today()
+    record = StaffTimeClock.query.filter_by(employee_id=current_user.employee_id, date=today).first()
+
+    if request.method == "POST":
+        action = request.form.get("action")
+        if not record:
+            record = StaffTimeClock(employee_id=current_user.employee_id, date=today)
+            db.session.add(record)
+        if action == "in" and not record.clock_in:
+            record.clock_in = datetime.utcnow()
+        elif action == "out" and record.clock_in and not record.clock_out:
+            record.clock_out = datetime.utcnow()
+        db.session.commit()
+        return redirect(url_for("teacher_timeclock"))
+
+    return render_template("teacher_timeclock.html", record=record, today=today, not_linked=False)
 
 
 @app.route("/owner/staff", methods=["GET", "POST"])
@@ -1482,7 +1751,8 @@ def owner_pay_salary(employee_id):
 
     outstanding_advances = Advance.query.filter_by(employee_id=employee_id, deducted=False).all()
     advances_total = sum(float(a.amount) for a in outstanding_advances)
-    net_amount = max(float(employee.monthly_salary) - advances_total, 0)
+    base_salary = get_effective_salary(employee_id, today)
+    net_amount = max(base_salary - advances_total, 0)
 
     payment = SalaryPayment.query.filter_by(employee_id=employee_id, month=today.month, year=today.year).first()
     if not payment:
@@ -1669,6 +1939,61 @@ def owner_tasks():
         by_class[t.class_id]["tasks"].append(t)
 
     return render_template("owner_tasks.html", by_class=by_class, today=today)
+
+
+@app.route("/owner/child/<int:child_id>/fee-history", methods=["GET", "POST"])
+@login_required
+def owner_fee_history(child_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    child = Child.query.get_or_404(child_id)
+
+    if request.method == "POST":
+        amount = request.form.get("amount")
+        subscription_type = request.form.get("subscription_type", child.subscription_type)
+        start = request.form.get("start_date") or date.today().isoformat()
+        if amount:
+            set_effective_fee(child_id, float(amount), subscription_type, date.fromisoformat(start))
+            db.session.commit()
+        return redirect(url_for("owner_fee_history", child_id=child_id))
+
+    history = FeeHistory.query.filter_by(child_id=child_id).order_by(FeeHistory.start_date.desc()).all()
+    return render_template("owner_fee_history.html", child=child, history=history, today=date.today())
+
+
+@app.route("/owner/child/<int:child_id>/pickup-people", methods=["GET", "POST"])
+@login_required
+def owner_pickup_people(child_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    child = Child.query.get_or_404(child_id)
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        relation = request.form.get("relation", "").strip()
+        phone = request.form.get("phone", "").strip()
+        if name:
+            db.session.add(PickupPerson(child_id=child_id, name=name, relation=relation, phone=phone))
+            db.session.commit()
+        return redirect(url_for("owner_pickup_people", child_id=child_id))
+
+    people = PickupPerson.query.filter_by(child_id=child_id).all()
+    return render_template("owner_pickup_people.html", child=child, people=people)
+
+
+@app.route("/owner/pickup-people/<int:person_id>/delete", methods=["POST"])
+@login_required
+def owner_delete_pickup_person(person_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    person = PickupPerson.query.get_or_404(person_id)
+    child_id = person.child_id
+    db.session.delete(person)
+    db.session.commit()
+    return redirect(url_for("owner_pickup_people", child_id=child_id))
 
 
 @app.route("/owner/child/<int:child_id>/profile", methods=["GET", "POST"])

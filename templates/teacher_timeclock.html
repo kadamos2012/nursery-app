@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>بصمة الحضور</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@700;800&family=Tajawal:wght@400;500;700&display=swap');
+    * { box-sizing: border-box; }
+    body { font-family: 'Tajawal', sans-serif; background: #F4F7F1; margin: 0; padding-bottom: 40px; }
+    header { background: #2F5D50; color: white; padding: 16px; display: flex; align-items: center; gap: 10px; }
+    header a { color: white; text-decoration: none; font-size: 18px; }
+    header h1 { font-family: 'Cairo', sans-serif; font-size: 16px; margin: 0; }
+    .card { background: white; border-radius: 16px; padding: 20px; margin: 16px; box-shadow: 0 2px 10px rgba(47,93,80,0.06); text-align: center; }
+    .time { font-family: 'Cairo', sans-serif; font-weight: 800; font-size: 28px; color: #1F2A22; margin: 10px 0; }
+    button { width: 100%; padding: 14px; border: none; border-radius: 12px; font-family: 'Tajawal', sans-serif; font-weight: 700; font-size: 15px; cursor: pointer; margin-top: 10px; }
+    button.in { background: #2F5D50; color: white; }
+    button.out { background: #E7A93B; color: white; }
+    .note { font-size: 12px; color: #5B6B5E; margin-top: 14px; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="{{ url_for('teacher_dashboard') }}">→</a>
+    <h1>بصمة الحضور — {{ today.strftime('%d/%m/%Y') }}</h1>
+  </header>
+
+  {% if not_linked %}
+  <div class="card">
+    <p style="font-size: 13px; color: #B23A22;">حسابك لسه مش مربوط بسجل موظفة. اطلبي من المالكة تربطه من صفحة "حسابات المعلمات".</p>
+  </div>
+  {% else %}
+  <div class="card">
+    {% if not record or not record.clock_in %}
+      <p style="font-size: 13px; color: #5B6B5E;">لسه ما سجلتيش حضور النهاردة</p>
+      <form method="POST"><input type="hidden" name="action" value="in">
+        <button type="submit" class="in">تسجيل حضور</button>
+      </form>
+    {% elif record.clock_in and not record.clock_out %}
+      <p style="font-size: 13px; color: #2F5D50;">✅ حضرتي الساعة</p>
+      <div class="time">{{ record.clock_in.strftime('%H:%M') }}</div>
+      <form method="POST"><input type="hidden" name="action" value="out">
+        <button type="submit" class="out">تسجيل انصراف</button>
+      </form>
+    {% else %}
+      <p style="font-size: 13px; color: #5B6B5E;">حضور: {{ record.clock_in.strftime('%H:%M') }} — انصراف: {{ record.clock_out.strftime('%H:%M') }}</p>
+      <p class="note">تم تسجيل يومك بالكامل 🎉</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</body>
+</html>

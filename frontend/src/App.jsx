@@ -604,6 +604,35 @@ function SpecialRequestCard({ apiFetch, childId }) {
   );
 }
 
+function MilestonesCard({ apiFetch, childId }) {
+  const [milestones, setMilestones] = useState([]);
+
+  useEffect(() => {
+    if (!childId) return;
+    apiFetch(`/api/child/${childId}/milestones`).then(setMilestones).catch(() => {});
+  }, [childId, apiFetch]);
+
+  if (!milestones || milestones.length === 0) return null;
+
+  return (
+    <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: "0 2px 10px rgba(47,93,80,0.06)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: 17 }}>🌟</span>
+        <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: C.ink }}>رحلة النمو</span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {milestones.slice(0, 5).map((m) => (
+          <div key={m.id} style={{ background: C.bg, borderRadius: 10, padding: 10 }}>
+            <span style={{ fontFamily: bodyFont, fontSize: 10, fontWeight: 700, color: C.primary, background: C.primarySoft, padding: "2px 8px", borderRadius: 20 }}>{m.domain}</span>
+            <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.ink, fontWeight: 700, marginTop: 6 }}>{m.title}</div>
+            {m.note && <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.inkSoft, marginTop: 2 }}>{m.note}</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function TasksCard({ apiFetch, childId }) {
   const [tasks, setTasks] = useState([]);
 
@@ -723,6 +752,7 @@ function HomeTab({ apiFetch, childId, notifications, medicalNotes }) {
       <MedicalAlertBanner notes={medicalNotes} />
       <PaymentReminderBanner status={paymentStatus} />
       <TasksCard apiFetch={apiFetch} childId={childId} />
+      <MilestonesCard apiFetch={apiFetch} childId={childId} />
       <WeeklyScheduleCard apiFetch={apiFetch} childId={childId} />
       <AnnouncementsCard announcements={announcements} />
       <TripsCard apiFetch={apiFetch} childId={childId} />

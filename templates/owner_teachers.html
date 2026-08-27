@@ -8,6 +8,13 @@
     <input type="text" name="name" placeholder="اسم المعلمة" required>
     <input type="tel" name="phone" placeholder="رقم الهاتف (لتسجيل الدخول)" required>
     <input type="text" name="password" placeholder="كلمة المرور" required>
+    <label style="font-size: 12px; color: #5B6B5E;">ربط بسجل موظفة (لبصمة الحضور والمرتب) — اختياري</label>
+    <select name="employee_id">
+      <option value="">بدون ربط</option>
+      {% for e in employees %}
+        <option value="{{ e.id }}">{{ e.name }}</option>
+      {% endfor %}
+    </select>
     <label style="font-size: 12px; color: #5B6B5E;">الفصول المسؤولة عنها</label>
     <div style="display: flex; flex-direction: column; gap: 6px;">
       {% for c in classes %}
@@ -27,6 +34,15 @@
   <div style="border: 1px solid #E4E9E1; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px;">
     <div style="font-family: 'Cairo', sans-serif; font-weight: 700; font-size: 13.5px; margin-bottom: 2px;">{{ t.name }}</div>
     <div style="font-size: 11.5px; color: #5B6B5E; direction: ltr; text-align: right; margin-bottom: 8px;">{{ t.phone }}</div>
+    <form method="POST" action="{{ url_for('owner_link_teacher_employee', teacher_id=t.id) }}" style="display:flex; gap:6px; margin-bottom:8px;">
+      <select name="employee_id" style="flex:1; padding:6px; font-size:11.5px;">
+        <option value="">بدون ربط بموظفة</option>
+        {% for e in employees %}
+          <option value="{{ e.id }}" {{ 'selected' if t.employee_id == e.id }}>{{ e.name }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" style="font-size:11px; padding:6px 10px; background:#DCEAE3; color:#2F5D50; border:none; border-radius:8px;">ربط</button>
+    </form>
     <form method="POST" action="{{ url_for('owner_update_teacher_classes', teacher_id=t.id) }}">
       <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 8px;">
         {% for c in classes %}

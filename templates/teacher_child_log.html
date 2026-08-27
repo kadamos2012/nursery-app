@@ -38,7 +38,37 @@
   <header>
     <a href="{{ url_for('teacher_dashboard') }}">→</a>
     <h1>تحديث {{ child.name }} — النهاردة</h1>
+    <a href="{{ url_for('teacher_child_milestones', child_id=child.id) }}" style="margin-right:auto; background:rgba(255,255,255,0.2); padding:6px 10px; border-radius:8px; font-size:11px;">🌟 النمو التطوري</a>
   </header>
+
+  <div style="background:white; margin:16px; padding:14px; border-radius:12px; box-shadow:0 2px 8px rgba(47,93,80,0.06);">
+    <div style="font-size:13px; font-weight:700; color:#1F2A22; margin-bottom:10px;">الحضور والانصراف</div>
+    {% if attendance and attendance.check_in_time %}
+      <div style="font-size:12px; color:#2F5D50; margin-bottom:8px;">✅ حضر الساعة {{ attendance.check_in_time.strftime('%H:%M') }} — مع {{ attendance.check_in_signed_by }}</div>
+    {% else %}
+      <form method="POST" action="{{ url_for('teacher_checkin', child_id=child.id) }}" style="display:flex; gap:6px; margin-bottom:8px;">
+        <select name="signed_by" style="flex:1; padding:8px; border-radius:8px; border:1px solid #E4E9E1;">
+          <option value="">مين اللي حضّره؟</option>
+          {% for n in authorized_names %}<option value="{{ n }}">{{ n }}</option>{% endfor %}
+          <option value="أخرى">شخص آخر</option>
+        </select>
+        <button type="submit" style="background:#2F5D50; color:white; border:none; border-radius:8px; padding:8px 14px; font-family:'Tajawal',sans-serif; font-size:12px; font-weight:700;">تسجيل حضور</button>
+      </form>
+    {% endif %}
+
+    {% if attendance and attendance.check_in_time and not attendance.check_out_time %}
+      <form method="POST" action="{{ url_for('teacher_checkout', child_id=child.id) }}" style="display:flex; gap:6px;">
+        <select name="signed_by" style="flex:1; padding:8px; border-radius:8px; border:1px solid #E4E9E1;">
+          <option value="">مين اللي استلمه؟</option>
+          {% for n in authorized_names %}<option value="{{ n }}">{{ n }}</option>{% endfor %}
+          <option value="أخرى">شخص آخر</option>
+        </select>
+        <button type="submit" style="background:#E7A93B; color:white; border:none; border-radius:8px; padding:8px 14px; font-family:'Tajawal',sans-serif; font-size:12px; font-weight:700;">تسجيل انصراف</button>
+      </form>
+    {% elif attendance and attendance.check_out_time %}
+      <div style="font-size:12px; color:#946515;">🚪 انصرف الساعة {{ attendance.check_out_time.strftime('%H:%M') }} — مع {{ attendance.check_out_signed_by }}</div>
+    {% endif %}
+  </div>
 
   {% if child.medical_notes %}
   <div style="background:#F8DFD9; color:#B23A22; margin:16px; padding:12px 14px; border-radius:12px; font-size:13px; font-weight:700; display:flex; align-items:flex-start; gap:8px;">

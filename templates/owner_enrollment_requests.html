@@ -29,14 +29,17 @@
         </td>
         <td style="font-size:11.5px;">{{ r.created_at.strftime('%d/%m/%Y') }}</td>
         <td>
-          <form method="POST" style="display:flex; gap:4px;">
+          <form method="POST" style="display:flex; flex-direction:column; gap:4px;">
             <input type="hidden" name="request_id" value="{{ r.id }}">
-            <select name="status" onchange="this.form.submit()" style="padding:5px 6px; font-size:11px;">
+            <select name="status" style="padding:5px 6px; font-size:11px;">
               <option value="new" {{ 'selected' if r.status == 'new' }}>جديد</option>
               <option value="contacted" {{ 'selected' if r.status == 'contacted' }}>تم التواصل</option>
+              <option value="tour_scheduled" {{ 'selected' if r.status == 'tour_scheduled' }}>جولة معاينة محددة</option>
               <option value="accepted" {{ 'selected' if r.status == 'accepted' }}>مقبول</option>
               <option value="rejected" {{ 'selected' if r.status == 'rejected' }}>مرفوض</option>
             </select>
+            <input type="datetime-local" name="tour_date" style="padding:5px 6px; font-size:10.5px;" value="{{ r.tour_date.strftime('%Y-%m-%dT%H:%M') if r.tour_date else '' }}">
+            <button type="submit" style="font-size:10.5px; padding:4px 8px; background:#DCEAE3; color:#2F5D50; border:none; border-radius:8px;">حفظ</button>
           </form>
         </td>
       </tr>

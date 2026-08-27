@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>النمو التطوري</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@700;800&family=Tajawal:wght@400;500;700&display=swap');
+    * { box-sizing: border-box; }
+    body { font-family: 'Tajawal', sans-serif; background: #F4F7F1; margin: 0; padding-bottom: 40px; }
+    header { background: #2F5D50; color: white; padding: 16px; display: flex; align-items: center; gap: 10px; }
+    header a { color: white; text-decoration: none; font-size: 18px; }
+    header h1 { font-family: 'Cairo', sans-serif; font-size: 16px; margin: 0; }
+    .card { background: white; border-radius: 16px; padding: 16px; margin: 16px; box-shadow: 0 2px 10px rgba(47,93,80,0.06); }
+    select, input, textarea { width: 100%; padding: 11px 13px; border: 1px solid #E4E9E1; border-radius: 10px; font-family: 'Tajawal', sans-serif; font-size: 13.5px; margin-bottom: 10px; }
+    button { width: 100%; padding: 12px; background: #2F5D50; color: white; border: none; border-radius: 10px; font-family: 'Tajawal', sans-serif; font-weight: 700; font-size: 13.5px; cursor: pointer; }
+    .milestone { background: #F4F7F1; border-radius: 12px; padding: 12px; margin-bottom: 8px; }
+    .domain { font-size: 10.5px; color: #2F5D50; font-weight: 700; background: #DCEAE3; display: inline-block; padding: 3px 8px; border-radius: 20px; margin-bottom: 6px; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="{{ url_for('teacher_dashboard') }}">→</a>
+    <h1>النمو التطوري — {{ child.name }}</h1>
+  </header>
+
+  <div class="card">
+    <h2 style="font-size:13px; color:#5B6B5E; margin:0 0 10px;">تسجيل إنجاز جديد</h2>
+    <form method="POST">
+      <select name="domain" required>
+        <option value="">اختاري المجال</option>
+        {% for key, label in domains.items() %}
+          <option value="{{ key }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+      <input type="text" name="title" placeholder="مثال: بدأ يمسك القلم صح" required>
+      <textarea name="note" rows="2" placeholder="ملاحظة إضافية (اختياري)"></textarea>
+      <button type="submit">حفظ</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2 style="font-size:13px; color:#5B6B5E; margin:0 0 10px;">السجل ({{ milestones|length }})</h2>
+    {% for m in milestones %}
+    <div class="milestone">
+      <span class="domain">{{ domains.get(m.domain, m.domain) }}</span>
+      <div style="font-size:13px; color:#1F2A22; font-weight:700;">{{ m.title }}</div>
+      {% if m.note %}<div style="font-size:12px; color:#5B6B5E; margin-top:4px;">{{ m.note }}</div>{% endif %}
+      <div style="font-size:10.5px; color:#5B6B5E; margin-top:6px;">{{ m.date.strftime('%d/%m/%Y') }}</div>
+    </div>
+    {% else %}
+    <p style="font-size:12.5px; color:#5B6B5E;">لسه مفيش إنجازات مسجلة</p>
+    {% endfor %}
+  </div>
+</body>
+</html>

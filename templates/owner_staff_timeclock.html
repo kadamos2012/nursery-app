@@ -1,0 +1,24 @@
+{% extends "owner_base.html" %}
+{% block header_title %}بصمة حضور {{ employee.name }}{% endblock %}
+{% set active = "staff" %}
+{% block content %}
+<a class="row-link" href="{{ url_for('owner_staff') }}">← رجوع للموظفين</a>
+
+<div class="card" style="margin-top: 14px;">
+  <h2>آخر 31 يوم</h2>
+  <table>
+    <thead><tr><th>التاريخ</th><th>حضور</th><th>انصراف</th></tr></thead>
+    <tbody>
+      {% for r in records %}
+      <tr>
+        <td>{{ r.date.strftime('%d/%m/%Y') }}</td>
+        <td>{{ r.clock_in.strftime('%H:%M') if r.clock_in else '—' }}</td>
+        <td>{{ r.clock_out.strftime('%H:%M') if r.clock_out else '—' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3">مفيش سجل حضور بعد</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

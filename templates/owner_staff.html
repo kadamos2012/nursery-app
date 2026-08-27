@@ -16,20 +16,24 @@
 <div class="card">
   <h2>الموظفين ({{ employees|length }}) — مرتبات {{ today.month }}/{{ today.year }}</h2>
   <table>
-    <thead><tr><th>الاسم</th><th>الوظيفة</th><th>المرتب</th><th>سلف مستحقة</th><th>الصافي</th><th>حالة الصرف</th></tr></thead>
+    <thead><tr><th>الاسم</th><th>الوظيفة</th><th>المرتب</th><th>سلف مستحقة</th><th>الصافي</th><th>حالة الصرف</th><th></th></tr></thead>
     <tbody>
       {% for e in employees %}
       {% set adv = advances_by_employee.get(e.id, {"items": [], "total": 0}) %}
       <tr>
         <td>{{ e.name }}</td>
         <td>{{ e.role or '—' }}</td>
-        <td>{{ "%.0f"|format(e.monthly_salary) }} ج</td>
+        <td>{{ "%.0f"|format(e.monthly_salary) }} ج <br><a class="row-link" style="font-size:10.5px;" href="{{ url_for('owner_salary_history', employee_id=e.id) }}">السجل ←</a></td>
         <td>
           {% if adv.total > 0 %}
             <span style="color:#B23A22;">{{ "%.0f"|format(adv.total) }} ج</span>
           {% else %}—{% endif %}
         </td>
         <td style="font-weight:700;">{{ "%.0f"|format(e.monthly_salary - adv.total) }} ج</td>
+        <td style="font-size: 10.5px;">
+          <a class="row-link" href="{{ url_for('owner_staff_credentials', employee_id=e.id) }}">شهادات ←</a>
+          <br><a class="row-link" href="{{ url_for('owner_staff_timeclock', employee_id=e.id) }}">بصمة الحضور ←</a>
+        </td>
         <td>
           {% if paid_status.get(e.id) %}
             <span class="badge paid">اتصرف</span>
