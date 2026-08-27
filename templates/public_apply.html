@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تسجيل طلب التحاق — {{ nursery.name if nursery else 'الحضانة' }}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@700;800&family=Tajawal:wght@400;500;700&display=swap');
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Tajawal', sans-serif; background: #F4F7F1; margin: 0;
+      display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 16px;
+    }
+    .card { background: white; border-radius: 20px; padding: 28px 22px; width: 100%; max-width: 400px; box-shadow: 0 4px 20px rgba(47,93,80,0.08); }
+    .logo { width: 64px; height: 64px; border-radius: 16px; margin: 0 auto 14px; display:block; }
+    h1 { font-family: 'Cairo', sans-serif; font-size: 18px; color: #1F2A22; margin: 0 0 4px; text-align:center; }
+    p.sub { font-size: 13px; color: #5B6B5E; margin: 0 0 20px; text-align:center; }
+    label { font-size: 13px; color: #1F2A22; display: block; margin-bottom: 6px; }
+    input, textarea { width: 100%; padding: 12px 14px; border: 1px solid #E4E9E1; border-radius: 12px; font-family: 'Tajawal', sans-serif; font-size: 14px; margin-bottom: 16px; }
+    button { width: 100%; padding: 13px; background: #2F5D50; color: white; border: none; border-radius: 12px; font-family: 'Tajawal', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; }
+    .success { text-align: center; padding: 20px 0; }
+    .success .check { font-size: 40px; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    {% if nursery and nursery.logo_data %}
+      <img src="{{ url_for('nursery_logo') }}" class="logo">
+    {% endif %}
+    {% if submitted %}
+      <div class="success">
+        <div class="check">✅</div>
+        <h1>تم استلام طلبك</h1>
+        <p class="sub">هيتم التواصل معاكي في أقرب وقت من إدارة الحضانة</p>
+      </div>
+    {% else %}
+      <h1>تسجيل طلب التحاق</h1>
+      <p class="sub">{{ nursery.name if nursery else 'الحضانة' }} — املي البيانات وهنتواصل معاكي</p>
+      <form method="POST">
+        <label>اسمك</label>
+        <input type="text" name="parent_name" required>
+        <label>رقم الهاتف</label>
+        <input type="tel" name="phone" required>
+        <label>اسم الطفل (لو حابة)</label>
+        <input type="text" name="child_name">
+        <label>تاريخ ميلاد الطفل</label>
+        <input type="date" name="child_birth_date">
+        <label>أي ملاحظات إضافية</label>
+        <textarea name="notes" rows="3"></textarea>
+        <button type="submit">إرسال الطلب</button>
+      </form>
+    {% endif %}
+  </div>
+</body>
+</html>

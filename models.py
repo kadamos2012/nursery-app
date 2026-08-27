@@ -234,6 +234,7 @@ class Trip(db.Model):
     estimated_students = db.Column(db.Integer, nullable=False, default=1)
     profit_margin_percent = db.Column(db.Numeric(5, 2), nullable=False, default=0)
     final_price = db.Column(db.Numeric(10, 2), nullable=True)
+    actual_total_cost = db.Column(db.Numeric(10, 2), nullable=True)  # filled in after the trip happens
     status = db.Column(db.String(20), nullable=False, default="draft")  # "draft" | "published"
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -277,6 +278,32 @@ class TripRegistration(db.Model):
     payment_method = db.relationship("PaymentMethod")
 
     __table_args__ = (db.UniqueConstraint("trip_id", "child_id", name="uq_trip_child"),)
+
+
+class EnrollmentRequest(db.Model):
+    """A public inquiry from a prospective parent, submitted via the /apply page."""
+    id = db.Column(db.Integer, primary_key=True)
+    nursery_id = db.Column(db.Integer, db.ForeignKey("nursery.id"), nullable=False)
+    parent_name = db.Column(db.String(150), nullable=False)
+    phone = db.Column(db.String(30), nullable=False)
+    child_name = db.Column(db.String(150), nullable=True)
+    child_birth_date = db.Column(db.Date, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(20), nullable=False, default="new")  # "new" | "contacted" | "accepted" | "rejected"
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class ClassPhoto(db.Model):
+    """A photo shared to a whole class (activities, group moments), visible to all parents in that class."""
+    id = db.Column(db.Integer, primary_key=True)
+    class_id = db.Column(db.Integer, db.ForeignKey("school_class.id"), nullable=False)
+    photo_data = db.Column(db.Text, nullable=False)  # base64
+    photo_mime = db.Column(db.String(50), nullable=False)
+    caption = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    uploaded_by_teacher_id = db.Column(db.Integer, db.ForeignKey("teacher.id"), nullable=True)
+
+    school_class = db.relationship("SchoolClass")
 
 
 class Announcement(db.Model):

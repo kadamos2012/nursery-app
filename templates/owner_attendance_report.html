@@ -1,0 +1,38 @@
+{% extends "owner_base.html" %}
+{% block header_title %}تقرير الحضور — {{ month }}/{{ year }}{% endblock %}
+{% set active = "attendance_report" %}
+{% block content %}
+<div class="card">
+  <h2>اختاري الشهر</h2>
+  <form class="inline" method="GET" style="flex-direction: row; gap: 8px;">
+    <select name="month">
+      {% for m in range(1, 13) %}
+        <option value="{{ m }}" {{ 'selected' if m == month }}>{{ m }}</option>
+      {% endfor %}
+    </select>
+    <input type="number" name="year" value="{{ year }}" style="width: 90px;">
+    <button type="submit" class="primary" style="width: auto; padding: 11px 16px;">عرض</button>
+  </form>
+  <p style="font-size: 11.5px; color: #5B6B5E; margin-top: 8px;">عدد أيام الحضانة المسجلة الشهر ده: {{ school_days }} يوم</p>
+</div>
+
+<div class="card">
+  <h2>نسبة حضور كل طفل ({{ rows|length }})</h2>
+  {% if not rows %}
+    <p style="font-size: 13px; color: #5B6B5E;">مفيش بيانات حضور مسجلة الشهر ده</p>
+  {% endif %}
+  <table>
+    <thead><tr><th>الطفل</th><th>أيام الحضور</th><th>النسبة</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr style="{{ 'background:#F8DFD9;' if r.low }}">
+        <td>{{ r.child.name }} {% if r.low %}<span title="نسبة حضور منخفضة">⚠️</span>{% endif %}</td>
+        <td>{{ r.present }} / {{ r.school_days }}</td>
+        <td style="font-weight:700; color: {{ '#B23A22' if r.low else '#2F5D50' }};">{{ r.pct }}%</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p style="font-size: 11px; color: #5B6B5E; margin-top: 10px;">⚠️ = نسبة الحضور أقل من 80%</p>
+</div>
+{% endblock %}

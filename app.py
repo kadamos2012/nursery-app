@@ -12,7 +12,8 @@ from models import (
     DailyLog, AttendanceRecord, Payment, Message, PushSubscription,
     Owner, Employee, SalaryPayment, Expense, Activity, Addon, ChildAddon,
     PaymentMethod, Advance, ExpenseCategory, Announcement,
-    Trip, TripCostItem, TripClass, TripRegistration
+    Trip, TripCostItem, TripClass, TripRegistration,
+    EnrollmentRequest, ClassPhoto
 )
 from pywebpush import webpush, WebPushException
 import json as json_lib
@@ -342,6 +343,20 @@ def child_register_trip(child_id, trip_id):
     return jsonify({"ok": True})
 
 
+@app.route("/api/child/<int:child_id>/class-photos")
+@login_required
+def child_class_photos(child_id):
+    if current_role() == "parent" and not child_belongs_to_parent(child_id, current_user.id):
+        return jsonify({"error": "غير مصرح"}), 403
+
+    child = Child.query.get_or_404(child_id)
+    photos = ClassPhoto.query.filter_by(class_id=child.class_id).order_by(ClassPhoto.created_at.desc()).limit(20).all()
+    return jsonify([{
+        "id": p.id, "url": url_for("serve_class_photo", photo_id=p.id, _external=True),
+        "caption": p.caption, "created_at": p.created_at.isoformat(),
+    } for p in photos])
+
+
 @app.route("/api/child/<int:child_id>/messages", methods=["GET", "POST"])
 @login_required
 def child_messages(child_id):
@@ -452,6 +467,45 @@ def unified_login():
     return render_template("login.html", error=None, nursery=Nursery.query.first())
 
 
+@app.route("/teacher/photos", methods=["GET", "POST"])
+@login_required
+def teacher_class_photos():
+    if current_role() != "teacher":
+        return redirect(url_for("unified_login"))
+
+    class_id = current_user.class_id
+    if request.method == "POST":
+        photo_file = request.files.get("photo")
+        caption = request.form.get("caption", "").strip()
+        if photo_file and photo_file.filename and class_id:
+            raw = photo_file.read()
+            if len(raw) <= 3 * 1024 * 1024:
+                db.session.add(ClassPhoto(
+                    class_id=class_id, photo_data=base64.b64encode(raw).decode("ascii"),
+                    photo_mime=photo_file.mimetype or "image/jpeg", caption=caption,
+                    uploaded_by_teacher_id=current_user.id,
+                ))
+                db.session.commit()
+        return redirect(url_for("teacher_class_photos"))
+
+    photos = ClassPhoto.query.filter_by(class_id=class_id).order_by(ClassPhoto.created_at.desc()).all() if class_id else []
+    return render_template("teacher_photos.html", photos=photos)
+
+
+@app.route("/class-photo/<int:photo_id>")
+@login_required
+def serve_class_photo(photo_id):
+    photo = ClassPhoto.query.get_or_404(photo_id)
+    if current_role() == "parent":
+        # must have a child in that class
+        child_ids = [pc.child_id for pc in ParentChild.query.filter_by(parent_id=current_user.id).all()]
+        classes_ok = Child.query.filter(Child.id.in_(child_ids), Child.class_id == photo.class_id).first()
+        if not classes_ok:
+            return "غير مصرح", 403
+    raw = base64.b64decode(photo.photo_data)
+    return app.response_class(raw, mimetype=photo.photo_mime)
+
+
 @app.route("/teacher")
 @login_required
 def teacher_dashboard():
@@ -522,6 +576,46 @@ def teacher_birthdays():
     birthday_kids.sort(key=lambda c: c.birth_date.day)
 
     return render_template("teacher_birthdays.html", children=birthday_kids, today=today)
+
+
+@app.route("/apply", methods=["GET", "POST"])
+def public_apply():
+    if request.method == "POST":
+        nursery = Nursery.query.first()
+        parent_name = request.form.get("parent_name", "").strip()
+        phone = request.form.get("phone", "").strip()
+        child_name = request.form.get("child_name", "").strip()
+        child_birth_date = request.form.get("child_birth_date") or None
+        notes = request.form.get("notes", "").strip()
+
+        if parent_name and phone:
+            db.session.add(EnrollmentRequest(
+                nursery_id=nursery.id if nursery else 1, parent_name=parent_name, phone=phone,
+                child_name=child_name, child_birth_date=child_birth_date, notes=notes,
+            ))
+            db.session.commit()
+            return render_template("public_apply.html", nursery=nursery, submitted=True)
+
+    nursery = Nursery.query.first()
+    return render_template("public_apply.html", nursery=nursery, submitted=False)
+
+
+@app.route("/owner/enrollment-requests", methods=["GET", "POST"])
+@login_required
+def owner_enrollment_requests():
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    if request.method == "POST":
+        request_id = request.form.get("request_id")
+        new_status = request.form.get("status")
+        req = EnrollmentRequest.query.get_or_404(request_id)
+        req.status = new_status
+        db.session.commit()
+        return redirect(url_for("owner_enrollment_requests"))
+
+    requests_list = EnrollmentRequest.query.order_by(EnrollmentRequest.created_at.desc()).all()
+    return render_template("owner_enrollment_requests.html", requests_list=requests_list)
 
 
 @app.route("/owner/settings", methods=["GET", "POST"])
@@ -733,10 +827,13 @@ def owner_trip_detail(trip_id):
     registered_child_ids = {r.child_id for r in registrations}
     unregistered_children = [c for c in eligible_children if c.id not in registered_child_ids]
 
+    revenue_collected = sum(float(r.price) for r in registrations if r.paid)
+    real_profit = (revenue_collected - float(trip.actual_total_cost)) if trip.actual_total_cost is not None else None
+
     return render_template(
         "owner_trip_detail.html", trip=trip, cost_per_child=cost_per_child, suggested=suggested,
         classes=classes, eligible_ids=eligible_ids, registrations=registrations, methods=methods,
-        unregistered_children=unregistered_children,
+        unregistered_children=unregistered_children, revenue_collected=revenue_collected, real_profit=real_profit,
     )
 
 
@@ -777,6 +874,18 @@ def owner_register_child_trip(trip_id):
                 trip_id=trip_id, child_id=child_id, price=trip.final_price or 0, requested_by="owner",
             ))
             db.session.commit()
+    return redirect(url_for("owner_trip_detail", trip_id=trip_id))
+
+
+@app.route("/owner/trips/<int:trip_id>/close", methods=["POST"])
+@login_required
+def owner_close_trip(trip_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    trip = Trip.query.get_or_404(trip_id)
+    trip.actual_total_cost = request.form.get("actual_total_cost") or 0
+    db.session.commit()
     return redirect(url_for("owner_trip_detail", trip_id=trip_id))
 
 
@@ -1289,6 +1398,37 @@ def owner_payment_methods_statement():
     )
 
 
+@app.route("/owner/attendance-report")
+@login_required
+def owner_attendance_report():
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    month = int(request.args.get("month", date.today().month))
+    year = int(request.args.get("year", date.today().year))
+
+    records = AttendanceRecord.query.filter(
+        db.extract("month", AttendanceRecord.date) == month,
+        db.extract("year", AttendanceRecord.date) == year,
+    ).all()
+
+    school_days = len({r.date for r in records}) or 1
+
+    by_child = {}
+    for r in records:
+        by_child.setdefault(r.child_id, {"present": 0, "child": r.child})
+        if r.present:
+            by_child[r.child_id]["present"] += 1
+
+    rows = []
+    for child_id, data in by_child.items():
+        pct = round((data["present"] / school_days) * 100)
+        rows.append({"child": data["child"], "present": data["present"], "school_days": school_days, "pct": pct, "low": pct < 80})
+    rows.sort(key=lambda r: r["pct"])
+
+    return render_template("owner_attendance_report.html", rows=rows, month=month, year=year, school_days=school_days)
+
+
 @app.route("/owner/dues")
 @login_required
 def owner_dues():
@@ -1476,6 +1616,72 @@ def style_header_row(ws, row_num, ncols):
         cell.alignment = Alignment(horizontal="right")
 
 
+@app.route("/owner/backup/export")
+@login_required
+def owner_backup_export():
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    wb = Workbook()
+    wb.remove(wb.active)
+
+    def add_sheet(name, headers, rows):
+        ws = wb.create_sheet(name)
+        ws.sheet_view.rightToLeft = True
+        ws.append(headers)
+        style_header_row(ws, 1, len(headers))
+        for row in rows:
+            ws.append(row)
+        for i, h in enumerate(headers):
+            ws.column_dimensions[chr(65 + i)].width = max(14, len(str(h)) + 4)
+
+    children = Child.query.all()
+    add_sheet("الأطفال", ["الاسم", "الفصل", "تاريخ الميلاد", "نوع الاشتراك", "الاشتراك الشهري", "مؤرشف"], [
+        [c.name, c.school_class.name, c.birth_date.isoformat() if c.birth_date else "", c.subscription_type, float(c.monthly_fee), "نعم" if c.archived else "لا"]
+        for c in children
+    ])
+
+    payments = Payment.query.order_by(Payment.year, Payment.month).all()
+    add_sheet("المصروفات الدراسية", ["الطفل", "الشهر", "السنة", "المبلغ", "مدفوع", "تاريخ السداد", "الطريقة"], [
+        [p.child.name, p.month, p.year, float(p.amount), "نعم" if p.paid else "لا",
+         p.paid_date.isoformat() if p.paid_date else "", p.payment_method.name if p.payment_method else ""]
+        for p in payments
+    ])
+
+    expenses = Expense.query.order_by(Expense.date).all()
+    add_sheet("المصروفات العامة", ["النوع", "الوصف", "المبلغ", "التاريخ", "الطريقة"], [
+        [e.category, e.description or "", float(e.amount), e.date.isoformat(), e.payment_method.name if e.payment_method else ""]
+        for e in expenses
+    ])
+
+    employees = Employee.query.all()
+    add_sheet("الموظفين", ["الاسم", "الوظيفة", "الهاتف", "المرتب الشهري", "نشط"], [
+        [e.name, e.role or "", e.phone or "", float(e.monthly_salary), "نعم" if e.active else "لا"]
+        for e in employees
+    ])
+
+    salaries = SalaryPayment.query.order_by(SalaryPayment.year, SalaryPayment.month).all()
+    add_sheet("المرتبات المدفوعة", ["الموظف", "الشهر", "السنة", "المبلغ", "مدفوع", "الطريقة"], [
+        [s.employee.name, s.month, s.year, float(s.amount), "نعم" if s.paid else "لا", s.payment_method.name if s.payment_method else ""]
+        for s in salaries
+    ])
+
+    trips = Trip.query.all()
+    add_sheet("الرحلات", ["الاسم", "التاريخ", "السعر النهائي", "الحالة", "عدد المشتركين"], [
+        [t.title, t.date.isoformat() if t.date else "", float(t.final_price or 0), t.status, len(t.registrations)]
+        for t in trips
+    ])
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return app.response_class(
+        buffer.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=نسخة-احتياطية-{date.today().isoformat()}.xlsx"},
+    )
+
+
 @app.route("/owner/reports/export")
 @login_required
 def owner_reports_export():
@@ -1557,6 +1763,35 @@ def db_init():
     with app.app_context():
         db.create_all()
     print("تم التأكد من وجود الجداول.")
+
+
+@app.route("/internal/send-due-reminders")
+def http_send_due_reminders():
+    """Triggered by a free external scheduler (e.g. cron-job.org) — sends a push
+    notification to parents of children with unpaid tuition from a past month."""
+    key = request.args.get("key")
+    expected_key = os.environ.get("INTERNAL_TASK_KEY")
+    if not expected_key or key != expected_key:
+        return "غير مصرح", 403
+
+    today = date.today()
+    overdue = Payment.query.filter_by(paid=False).all()
+    sent = 0
+    for p in overdue:
+        # Only remind for months strictly before the current one (truly overdue,
+        # not this month's not-yet-collected payment).
+        if (p.year, p.month) >= (today.year, today.month):
+            continue
+        if p.child.archived:
+            continue
+        notify_child_parents(
+            p.child_id,
+            f"تذكير بمصروفات {p.child.name}",
+            f"مصروفات شهر {p.month}/{p.year} ({p.amount} ج) لسه متسددتش، برجاء التواصل مع الحضانة",
+        )
+        sent += 1
+
+    return {"reminders_sent": sent}
 
 
 @app.route("/internal/generate-monthly-tuition")

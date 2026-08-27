@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   Home, BookOpen, CalendarCheck, MessageCircle, Sun, Moon, UtensilsCrossed,
   Smile, Clock, CreditCard, Send, CheckCircle2, Settings, LogOut,
-  Loader2, AlertCircle, Bell, BellOff, Megaphone, MapPin
+  Loader2, AlertCircle, Bell, BellOff, Megaphone, MapPin, Images
 } from "lucide-react";
 
 const C = {
@@ -470,6 +470,34 @@ function TripsCard({ apiFetch, childId }) {
   );
 }
 
+function ClassPhotosCard({ apiFetch, childId }) {
+  const [photos, setPhotos] = useState([]);
+
+  useEffect(() => {
+    if (!childId) return;
+    apiFetch(`/api/child/${childId}/class-photos`).then(setPhotos).catch(() => {});
+  }, [childId, apiFetch]);
+
+  if (!photos || photos.length === 0) return null;
+
+  return (
+    <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: "0 2px 10px rgba(47,93,80,0.06)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <Images size={17} color={C.primary} />
+        <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: C.ink }}>صور الفصل</span>
+      </div>
+      <div style={{ display: "flex", gap: 8, overflowX: "auto" }}>
+        {photos.map((p) => (
+          <div key={p.id} style={{ flexShrink: 0, width: 100 }}>
+            <img src={p.url} alt={p.caption || ""} style={{ width: 100, height: 100, borderRadius: 12, objectFit: "cover" }} />
+            {p.caption && <div style={{ fontFamily: bodyFont, fontSize: 10, color: C.inkSoft, marginTop: 4 }}>{p.caption}</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function HomeTab({ apiFetch, childId, notifications, medicalNotes }) {
   const [today, setToday] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState(null);
@@ -497,6 +525,7 @@ function HomeTab({ apiFetch, childId, notifications, medicalNotes }) {
       <PaymentReminderBanner status={paymentStatus} />
       <AnnouncementsCard announcements={announcements} />
       <TripsCard apiFetch={apiFetch} childId={childId} />
+      <ClassPhotosCard apiFetch={apiFetch} childId={childId} />
       <DayPathCard today={today} />
     </div>
   );

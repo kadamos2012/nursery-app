@@ -1,0 +1,47 @@
+{% extends "owner_base.html" %}
+{% block header_title %}طلبات الالتحاق الجديدة{% endblock %}
+{% set active = "enrollment" %}
+{% block content %}
+<div class="card">
+  <h2>لينك التسجيل (حطيه في إعلاناتك)</h2>
+  <div style="direction: ltr; text-align: left; background: #F4F7F1; padding: 10px 12px; border-radius: 10px; font-size: 12.5px; word-break: break-all;">
+    {{ request.url_root }}apply
+  </div>
+</div>
+
+<div class="card">
+  <h2>الطلبات ({{ requests_list|length }})</h2>
+  {% if not requests_list %}
+    <p style="font-size: 13px; color: #5B6B5E;">لسه مفيش طلبات جديدة</p>
+  {% endif %}
+  <table>
+    <thead><tr><th>ولي الأمر</th><th>الطفل</th><th>التاريخ</th><th>الحالة</th></tr></thead>
+    <tbody>
+      {% for r in requests_list %}
+      <tr>
+        <td>
+          {{ r.parent_name }}
+          <div style="font-size:11px; color:#5B6B5E; direction:ltr; text-align:right;">{{ r.phone }}</div>
+        </td>
+        <td>
+          {{ r.child_name or '—' }}
+          {% if r.notes %}<div style="font-size:10.5px; color:#5B6B5E;">{{ r.notes }}</div>{% endif %}
+        </td>
+        <td style="font-size:11.5px;">{{ r.created_at.strftime('%d/%m/%Y') }}</td>
+        <td>
+          <form method="POST" style="display:flex; gap:4px;">
+            <input type="hidden" name="request_id" value="{{ r.id }}">
+            <select name="status" onchange="this.form.submit()" style="padding:5px 6px; font-size:11px;">
+              <option value="new" {{ 'selected' if r.status == 'new' }}>جديد</option>
+              <option value="contacted" {{ 'selected' if r.status == 'contacted' }}>تم التواصل</option>
+              <option value="accepted" {{ 'selected' if r.status == 'accepted' }}>مقبول</option>
+              <option value="rejected" {{ 'selected' if r.status == 'rejected' }}>مرفوض</option>
+            </select>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
