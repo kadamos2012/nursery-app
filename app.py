@@ -440,6 +440,24 @@ def require_owner():
     return current_role() == "owner"
 
 
+@app.route("/teacher/birthdays")
+@login_required
+def teacher_birthdays():
+    if current_role() != "teacher":
+        return redirect(url_for("unified_login"))
+
+    today = date.today()
+    if current_user.class_id:
+        children = Child.query.filter_by(class_id=current_user.class_id, archived=False).all()
+    else:
+        children = Child.query.filter_by(archived=False).all()
+
+    birthday_kids = [c for c in children if c.birth_date and c.birth_date.month == today.month]
+    birthday_kids.sort(key=lambda c: c.birth_date.day)
+
+    return render_template("teacher_birthdays.html", children=birthday_kids, today=today)
+
+
 @app.route("/owner")
 @login_required
 def owner_dashboard():
@@ -477,6 +495,20 @@ def owner_dashboard():
         salaries_total=salaries_total, activities_cost=activities_cost, net=net,
         classes_count=classes_count, students_count=students_count, staff_count=staff_count,
     )
+
+
+@app.route("/owner/birthdays")
+@login_required
+def owner_birthdays():
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    today = date.today()
+    children = Child.query.filter_by(archived=False).all()
+    birthday_kids = [c for c in children if c.birth_date and c.birth_date.month == today.month]
+    birthday_kids.sort(key=lambda c: c.birth_date.day)
+
+    return render_template("owner_birthdays.html", children=birthday_kids, today=today)
 
 
 @app.route("/owner/classes", methods=["GET", "POST"])

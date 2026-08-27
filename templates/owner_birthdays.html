@@ -1,0 +1,31 @@
+{% extends "owner_base.html" %}
+{% block header_title %}أعياد الميلاد — {{ today.strftime('%B') }}{% endblock %}
+{% set active = "birthdays" %}
+{% block content %}
+<div class="card">
+  <h2>أطفال عندهم عيد ميلاد الشهر ده ({{ children|length }})</h2>
+  {% if not children %}
+    <p style="font-size: 13px; color: #5B6B5E;">مفيش أعياد ميلاد مسجلة الشهر ده</p>
+  {% else %}
+  <table>
+    <thead><tr><th>الاسم</th><th>الفصل</th><th>يوم الميلاد</th><th>هيتم</th></tr></thead>
+    <tbody>
+      {% for c in children %}
+      <tr style="{{ 'background:#FBEBCB;' if c.birth_date.day == today.day }}">
+        <td>
+          {{ c.name }}
+          {% if c.birth_date.day == today.day %}<span style="margin-right:4px;">🎉</span>{% endif %}
+        </td>
+        <td>{{ c.school_class.name }}</td>
+        <td>{{ c.birth_date.strftime('%d/%m') }}</td>
+        <td>
+          {% set turning = today.year - c.birth_date.year %}
+          {{ turning }} سنة
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+{% endblock %}
