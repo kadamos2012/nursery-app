@@ -351,16 +351,11 @@ def unified_login():
     return render_template("login.html", error=None)
 
 
-@app.route("/teacher/login", methods=["GET", "POST"])
-def teacher_login():
-    return redirect(url_for("unified_login"))
-
-
 @app.route("/teacher")
 @login_required
 def teacher_dashboard():
     if current_role() != "teacher":
-        return redirect(url_for("teacher_login"))
+        return redirect(url_for("unified_login"))
     children = Child.query.filter_by(class_id=current_user.class_id).all() if current_user.class_id else Child.query.all()
 
     today = date.today()
@@ -373,7 +368,7 @@ def teacher_dashboard():
 @login_required
 def teacher_child_log(child_id):
     if current_role() != "teacher":
-        return redirect(url_for("teacher_login"))
+        return redirect(url_for("unified_login"))
 
     child = Child.query.get_or_404(child_id)
     today = date.today()
@@ -407,16 +402,11 @@ def require_owner():
     return current_role() == "owner"
 
 
-@app.route("/owner/login", methods=["GET", "POST"])
-def owner_login():
-    return redirect(url_for("unified_login"))
-
-
 @app.route("/owner")
 @login_required
 def owner_dashboard():
     if not require_owner():
-        return redirect(url_for("owner_login"))
+        return redirect(url_for("unified_login"))
 
     today = date.today()
     month, year = today.month, today.year
@@ -455,7 +445,7 @@ def owner_dashboard():
 @login_required
 def owner_classes():
     if not require_owner():
-        return redirect(url_for("owner_login"))
+        return redirect(url_for("unified_login"))
 
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -473,7 +463,7 @@ def owner_classes():
 @login_required
 def owner_class_students(class_id):
     if not require_owner():
-        return redirect(url_for("owner_login"))
+        return redirect(url_for("unified_login"))
 
     school_class = SchoolClass.query.get_or_404(class_id)
 
@@ -497,7 +487,7 @@ def owner_class_students(class_id):
 @login_required
 def owner_activities():
     if not require_owner():
-        return redirect(url_for("owner_login"))
+        return redirect(url_for("unified_login"))
 
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -521,7 +511,7 @@ def owner_activities():
 @login_required
 def owner_staff():
     if not require_owner():
-        return redirect(url_for("owner_login"))
+        return redirect(url_for("unified_login"))
 
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -549,7 +539,7 @@ def owner_staff():
 @login_required
 def owner_pay_salary(employee_id):
     if not require_owner():
-        return redirect(url_for("owner_login"))
+        return redirect(url_for("unified_login"))
 
     employee = Employee.query.get_or_404(employee_id)
     today = date.today()
@@ -570,7 +560,7 @@ def owner_pay_salary(employee_id):
 @login_required
 def owner_parents():
     if not require_owner():
-        return redirect(url_for("owner_login"))
+        return redirect(url_for("unified_login"))
 
     if request.method == "POST":
         form_type = request.form.get("form_type")
@@ -627,7 +617,7 @@ def render_template_owner_parents_error(message):
 @login_required
 def owner_expenses():
     if not require_owner():
-        return redirect(url_for("owner_login"))
+        return redirect(url_for("unified_login"))
 
     if request.method == "POST":
         category = request.form.get("category", "").strip()
@@ -651,7 +641,7 @@ def owner_expenses():
 @login_required
 def owner_reports():
     if not require_owner():
-        return redirect(url_for("owner_login"))
+        return redirect(url_for("unified_login"))
 
     month = int(request.args.get("month", date.today().month))
     year = int(request.args.get("year", date.today().year))

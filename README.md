@@ -8,7 +8,7 @@ flask --app app.py run       # يشغل السيرفر على http://127.0.0.1:5
 ```
 
 بيانات الدخول التجريبية بعد الـ seed:
-- **معلمة**: 01000000001 / teacher123 → صفحة `/teacher/login`
+- **معلمة**: 01000000001 / teacher123 → صفحة الدخول الموحدة `/login`
 - **ولية أمر**: 01000000002 / parent123 → عبر الـ API
 
 ## الموديلات (models.py)
@@ -27,7 +27,7 @@ Nursery → SchoolClass → Child ← ParentChild → Parent
 كلهم بيرجعوا JSON ومحميين بـ session cookie (Flask-Login).
 
 ## صفحات المعلمة (server-rendered، سريعة على الموبايل)
-- `/teacher/login`
+- `/login` (صفحة دخول موحدة لكل الأدوار)
 - `/teacher` — قائمة الأطفال وحالة تحديث كل واحد
 - `/teacher/child/<id>/log` — نموذج تحديث سريع (اختيار بالضغط مش كتابة)
 
