@@ -11,7 +11,7 @@ from models import (
     db, Nursery, SchoolClass, Teacher, Parent, Child, ParentChild,
     DailyLog, AttendanceRecord, Payment, Message, PushSubscription,
     Owner, Employee, SalaryPayment, Expense, Activity, Addon, ChildAddon,
-    PaymentMethod
+    PaymentMethod, Advance
 )
 from pywebpush import webpush, WebPushException
 import json as json_lib
@@ -66,6 +66,18 @@ def current_role():
     if isinstance(current_user, Owner):
         return "owner"
     return "parent"
+
+
+def compute_child_expected_fee(child):
+    addons_total = sum(float(ca.addon.monthly_fee) for ca in ChildAddon.query.filter_by(child_id=child.id).all())
+    subtotal = float(child.monthly_fee) + addons_total
+    if child.discount_type == "fixed":
+        discount = float(child.discount_value)
+    elif child.discount_type == "percent":
+        discount = subtotal * float(child.discount_value) / 100
+    else:
+        discount = 0
+    return max(subtotal - discount, 0)
 
 
 def child_belongs_to_parent(child_id, parent_id):
@@ -491,8 +503,7 @@ def owner_class_students(class_id):
         parents_by_child[s.id] = [Parent.query.get(l.parent_id) for l in links]
         child_addons = ChildAddon.query.filter_by(child_id=s.id).all()
         addons_by_child[s.id] = [ca.addon for ca in child_addons]
-        addons_total = sum(float(a.monthly_fee) for a in addons_by_child[s.id])
-        total_due_by_child[s.id] = float(s.monthly_fee) + addons_total
+        total_due_by_child[s.id] = compute_child_expected_fee(s)
 
     return render_template(
         "owner_students.html", school_class=school_class, students=students,
@@ -551,7 +562,19 @@ def owner_staff():
         SalaryPayment.query.filter_by(month=today.month, year=today.year).all()
     }
     methods = PaymentMethod.query.filter_by(active=True).all()
-    return render_template("owner_staff.html", employees=employees, paid_status=paid_status, today=today, methods=methods)
+
+    advances_by_employee = {}
+    for e in employees:
+        outstanding = Advance.query.filter_by(employee_id=e.id, deducted=False).all()
+        advances_by_employee[e.id] = {
+            "items": outstanding,
+            "total": sum(float(a.amount) for a in outstanding),
+        }
+
+    return render_template(
+        "owner_staff.html", employees=employees, paid_status=paid_status,
+        today=today, methods=methods, advances_by_employee=advances_by_employee,
+    )
 
 
 @app.route("/owner/staff/<int:employee_id>/pay-salary", methods=["POST"])
@@ -563,17 +586,38 @@ def owner_pay_salary(employee_id):
     employee = Employee.query.get_or_404(employee_id)
     today = date.today()
     method_id = request.form.get("payment_method_id") or None
+
+    outstanding_advances = Advance.query.filter_by(employee_id=employee_id, deducted=False).all()
+    advances_total = sum(float(a.amount) for a in outstanding_advances)
+    net_amount = max(float(employee.monthly_salary) - advances_total, 0)
+
     payment = SalaryPayment.query.filter_by(employee_id=employee_id, month=today.month, year=today.year).first()
     if not payment:
-        payment = SalaryPayment(
-            employee_id=employee_id, month=today.month, year=today.year,
-            amount=employee.monthly_salary,
-        )
+        payment = SalaryPayment(employee_id=employee_id, month=today.month, year=today.year, amount=net_amount)
         db.session.add(payment)
+    payment.amount = net_amount
     payment.paid = True
     payment.paid_date = today
     payment.payment_method_id = method_id
+
+    for adv in outstanding_advances:
+        adv.deducted = True
+
     db.session.commit()
+    return redirect(url_for("owner_staff"))
+
+
+@app.route("/owner/staff/<int:employee_id>/advance", methods=["POST"])
+@login_required
+def owner_add_advance(employee_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    amount = request.form.get("amount")
+    note = request.form.get("note", "").strip()
+    if amount and float(amount) > 0:
+        db.session.add(Advance(employee_id=employee_id, amount=amount, note=note))
+        db.session.commit()
     return redirect(url_for("owner_staff"))
 
 
@@ -690,6 +734,8 @@ def owner_child_profile(child_id):
 
     if request.method == "POST":
         child.medical_notes = request.form.get("medical_notes", "").strip()
+        child.discount_type = request.form.get("discount_type", "none")
+        child.discount_value = request.form.get("discount_value") or 0
 
         photo_file = request.files.get("photo")
         if photo_file and photo_file.filename:
@@ -737,6 +783,68 @@ def owner_payment_methods():
     return render_template("owner_payment_methods.html", methods=methods)
 
 
+@app.route("/owner/payment-methods/statement")
+@login_required
+def owner_payment_methods_statement():
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    today = date.today()
+    start = request.args.get("start") or today.replace(day=1).isoformat()
+    end = request.args.get("end") or today.isoformat()
+
+    methods = PaymentMethod.query.filter_by(active=True).all()
+    summary = {m.id: {"name": m.name, "in": 0.0, "out": 0.0} for m in methods}
+    summary["none"] = {"name": "بدون طريقة محددة", "in": 0.0, "out": 0.0}
+
+    transactions = []
+
+    tuition_payments = Payment.query.filter(
+        Payment.paid.is_(True), Payment.paid_date >= start, Payment.paid_date <= end
+    ).all()
+    for p in tuition_payments:
+        key = p.payment_method_id or "none"
+        summary.setdefault(key, {"name": p.payment_method.name if p.payment_method else "بدون طريقة محددة", "in": 0.0, "out": 0.0})
+        summary[key]["in"] += float(p.amount)
+        transactions.append({
+            "date": p.paid_date, "type": "تحصيل اشتراك", "detail": p.child.name,
+            "amount": float(p.amount), "direction": "in",
+            "method": p.payment_method.name if p.payment_method else "—",
+        })
+
+    expenses = Expense.query.filter(Expense.date >= start, Expense.date <= end).all()
+    for e in expenses:
+        key = e.payment_method_id or "none"
+        summary.setdefault(key, {"name": e.payment_method.name if e.payment_method else "بدون طريقة محددة", "in": 0.0, "out": 0.0})
+        summary[key]["out"] += float(e.amount)
+        transactions.append({
+            "date": e.date, "type": f"مصروف — {e.category}", "detail": e.description or "",
+            "amount": float(e.amount), "direction": "out",
+            "method": e.payment_method.name if e.payment_method else "—",
+        })
+
+    salary_payments = SalaryPayment.query.filter(
+        SalaryPayment.paid.is_(True), SalaryPayment.paid_date >= start, SalaryPayment.paid_date <= end
+    ).all()
+    for sp in salary_payments:
+        key = sp.payment_method_id or "none"
+        summary.setdefault(key, {"name": sp.payment_method.name if sp.payment_method else "بدون طريقة محددة", "in": 0.0, "out": 0.0})
+        summary[key]["out"] += float(sp.amount)
+        transactions.append({
+            "date": sp.paid_date, "type": "مرتب", "detail": sp.employee.name,
+            "amount": float(sp.amount), "direction": "out",
+            "method": sp.payment_method.name if sp.payment_method else "—",
+        })
+
+    transactions.sort(key=lambda t: t["date"], reverse=True)
+    summary_rows = [v for k, v in summary.items() if v["in"] > 0 or v["out"] > 0]
+
+    return render_template(
+        "owner_payment_statement.html", start=start, end=end,
+        summary_rows=summary_rows, transactions=transactions,
+    )
+
+
 @app.route("/owner/tuition", methods=["GET", "POST"])
 @login_required
 def owner_tuition():
@@ -770,8 +878,7 @@ def owner_tuition():
 
     rows = []
     for c in children:
-        addons_total = sum(float(ca.addon.monthly_fee) for ca in ChildAddon.query.filter_by(child_id=c.id).all())
-        expected = float(c.monthly_fee) + addons_total
+        expected = compute_child_expected_fee(c)
         rows.append({
             "child": c,
             "expected": expected,

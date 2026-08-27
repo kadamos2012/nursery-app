@@ -67,6 +67,8 @@ class Child(db.Model):
 
     subscription_type = db.Column(db.String(20), nullable=False, default="full_time")  # "full_time" | "part_time"
     monthly_fee = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    discount_type = db.Column(db.String(10), nullable=False, default="none")  # "none" | "fixed" | "percent"
+    discount_value = db.Column(db.Numeric(10, 2), nullable=False, default=0)
 
     parents = db.relationship("ParentChild", backref="child", lazy=True)
     daily_logs = db.relationship("DailyLog", backref="child", lazy=True, order_by="DailyLog.date.desc()")
@@ -203,6 +205,16 @@ class SalaryPayment(db.Model):
     payment_method = db.relationship("PaymentMethod", foreign_keys=[payment_method_id])
 
     __table_args__ = (db.UniqueConstraint("employee_id", "month", "year", name="uq_salary_emp_month_year"),)
+
+
+class Advance(db.Model):
+    """A salary advance (سلفة) given to an employee, deducted from a future salary payment."""
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey("employee.id"), nullable=False)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    date = db.Column(db.Date, nullable=False, default=date.today)
+    note = db.Column(db.String(255), nullable=True)
+    deducted = db.Column(db.Boolean, default=False)
 
 
 class Expense(db.Model):

@@ -29,6 +29,14 @@
     <label style="font-size: 12px; color: #5B6B5E; margin-top: 6px;">حساسية أو أمراض مزمنة (اختياري)</label>
     <textarea name="medical_notes" rows="4" placeholder="مثال: حساسية من الفول السوداني، ربو، سكر...">{{ child.medical_notes or '' }}</textarea>
 
+    <label style="font-size: 12px; color: #5B6B5E; margin-top: 6px;">الخصم</label>
+    <select name="discount_type">
+      <option value="none" {{ 'selected' if child.discount_type == 'none' }}>بدون خصم</option>
+      <option value="fixed" {{ 'selected' if child.discount_type == 'fixed' }}>مبلغ ثابت (جنيه)</option>
+      <option value="percent" {{ 'selected' if child.discount_type == 'percent' }}>نسبة مئوية (%)</option>
+    </select>
+    <input type="number" step="0.01" name="discount_value" value="{{ child.discount_value }}" placeholder="قيمة الخصم">
+
     <button type="submit" class="primary">حفظ</button>
   </form>
 </div>

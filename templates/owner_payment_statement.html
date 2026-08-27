@@ -1,0 +1,52 @@
+{% extends "owner_base.html" %}
+{% block header_title %}كشف حركة طرق التحصيل{% endblock %}
+{% set active = "methods" %}
+{% block content %}
+<div class="card">
+  <h2>الفترة</h2>
+  <form class="inline" method="GET" style="flex-direction: row; gap: 8px; flex-wrap: wrap;">
+    <input type="date" name="start" value="{{ start }}">
+    <input type="date" name="end" value="{{ end }}">
+    <button type="submit" class="primary" style="width: auto; padding: 11px 16px;">عرض</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>ملخص حسب الطريقة</h2>
+  <table>
+    <thead><tr><th>الطريقة</th><th>تحصيل (داخل)</th><th>صرف (خارج)</th><th>الصافي</th></tr></thead>
+    <tbody>
+      {% for row in summary_rows %}
+      <tr>
+        <td>{{ row.name }}</td>
+        <td style="color:#2F5D50;">{{ "%.0f"|format(row["in"]) }} ج</td>
+        <td style="color:#B23A22;">{{ "%.0f"|format(row["out"]) }} ج</td>
+        <td style="font-weight:700;">{{ "%.0f"|format(row["in"] - row["out"]) }} ج</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4">لا توجد حركات في الفترة دي</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h2>كل الحركات ({{ transactions|length }})</h2>
+  <table>
+    <thead><tr><th>التاريخ</th><th>النوع</th><th>التفاصيل</th><th>الطريقة</th><th>المبلغ</th></tr></thead>
+    <tbody>
+      {% for t in transactions %}
+      <tr>
+        <td>{{ t.date.strftime('%d/%m/%Y') if t.date else '—' }}</td>
+        <td>{{ t.type }}</td>
+        <td>{{ t.detail }}</td>
+        <td>{{ t.method }}</td>
+        <td style="color: {{ '#2F5D50' if t.direction == 'in' else '#B23A22' }}; font-weight:700;">
+          {{ '+' if t.direction == 'in' else '-' }}{{ "%.0f"|format(t.amount) }} ج
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

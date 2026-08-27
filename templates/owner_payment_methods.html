@@ -2,7 +2,9 @@
 {% block header_title %}طرق التحصيل والصرف{% endblock %}
 {% set active = "methods" %}
 {% block content %}
-<div class="card">
+<a class="row-link" href="{{ url_for('owner_payment_methods_statement') }}">عرض كشف حركة كل الطرق ←</a>
+
+<div class="card" style="margin-top: 14px;">
   <h2>إضافة طريقة جديدة</h2>
   <p style="font-size: 12px; color: #5B6B5E; margin-top: -4px;">مثال: نقدي، تحويل بنكي، فودافون كاش، إنستاباي</p>
   <form class="inline" method="POST">

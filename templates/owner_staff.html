@@ -16,13 +16,20 @@
 <div class="card">
   <h2>الموظفين ({{ employees|length }}) — مرتبات {{ today.month }}/{{ today.year }}</h2>
   <table>
-    <thead><tr><th>الاسم</th><th>الوظيفة</th><th>المرتب</th><th>حالة الصرف</th></tr></thead>
+    <thead><tr><th>الاسم</th><th>الوظيفة</th><th>المرتب</th><th>سلف مستحقة</th><th>الصافي</th><th>حالة الصرف</th></tr></thead>
     <tbody>
       {% for e in employees %}
+      {% set adv = advances_by_employee.get(e.id, {"items": [], "total": 0}) %}
       <tr>
         <td>{{ e.name }}</td>
         <td>{{ e.role or '—' }}</td>
         <td>{{ "%.0f"|format(e.monthly_salary) }} ج</td>
+        <td>
+          {% if adv.total > 0 %}
+            <span style="color:#B23A22;">{{ "%.0f"|format(adv.total) }} ج</span>
+          {% else %}—{% endif %}
+        </td>
+        <td style="font-weight:700;">{{ "%.0f"|format(e.monthly_salary - adv.total) }} ج</td>
         <td>
           {% if paid_status.get(e.id) %}
             <span class="badge paid">اتصرف</span>
@@ -42,5 +49,21 @@
       {% endfor %}
     </tbody>
   </table>
+</div>
+
+<div class="card">
+  <h2>تسجيل سلفة لموظف</h2>
+  <form class="inline" id="advance-form" method="POST">
+    <select name="employee_select" onchange="document.getElementById('advance-form').action='/owner/staff/' + this.value + '/advance'" required>
+      <option value="">اختاري الموظف</option>
+      {% for e in employees %}
+        <option value="{{ e.id }}">{{ e.name }}</option>
+      {% endfor %}
+    </select>
+    <input type="number" step="0.01" name="amount" placeholder="مبلغ السلفة" required>
+    <input type="text" name="note" placeholder="ملاحظة (اختياري)">
+    <button type="submit" class="primary">تسجيل السلفة</button>
+  </form>
+  <p style="font-size: 11px; color: #5B6B5E; margin-top: 8px;">السلفة بتتخصم تلقائي من مرتب الموظف أول ما تصرفيله مرتبه</p>
 </div>
 {% endblock %}

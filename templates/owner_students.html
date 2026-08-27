@@ -57,7 +57,14 @@
           {% else %}—{% endif %}
           <br><a class="row-link" style="font-size: 11px;" href="{{ url_for('owner_child_addons', child_id=s.id) }}">إدارة ←</a>
         </td>
-        <td style="font-weight: 700;">{{ "%.0f"|format(total_due_by_child.get(s.id, 0)) }} ج</td>
+        <td style="font-weight: 700;">
+          {{ "%.0f"|format(total_due_by_child.get(s.id, 0)) }} ج
+          {% if s.discount_type != 'none' %}
+            <div style="font-size:10px;color:#2F5D50;font-weight:400;">
+              خصم {{ s.discount_value|int }}{{ '%' if s.discount_type == 'percent' else ' ج' }}
+            </div>
+          {% endif %}
+        </td>
         <td>
           {% if s.photo_data %}
             <img src="{{ url_for('child_photo', child_id=s.id) }}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
