@@ -70,6 +70,12 @@
     {% endif %}
   </div>
 
+  {% if part_time_warning %}
+  <div style="background:#F8DFD9; color:#B23A22; margin:16px; padding:12px 14px; border-radius:12px; font-size:13px; font-weight:700;">
+    {{ part_time_warning }}
+  </div>
+  {% endif %}
+
   {% if child.medical_notes %}
   <div style="background:#F8DFD9; color:#B23A22; margin:16px; padding:12px 14px; border-radius:12px; font-size:13px; font-weight:700; display:flex; align-items:flex-start; gap:8px;">
     <span style="font-size:16px;">⚠️</span>

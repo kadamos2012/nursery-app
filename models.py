@@ -24,7 +24,36 @@ class SchoolClass(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nursery_id = db.Column(db.Integer, db.ForeignKey("nursery.id"), nullable=False)
     name = db.Column(db.String(100), nullable=False)  # e.g. "الفراشات"
+    full_time_price = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    part_time_price = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    part_time_max_days = db.Column(db.Integer, nullable=False, default=12)  # per calendar month, does not roll over
+    overtime_start_hour = db.Column(db.Integer, nullable=True, default=17)  # 24h clock, e.g. 17 = 5 PM
+    overtime_hourly_rate = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     children = db.relationship("Child", backref="school_class", lazy=True)
+
+
+class ClassFeeHistory(db.Model):
+    """Tracks class-level subscription price changes over time (full-time and
+    part-time rates apply to every child in the class, not set per-child)."""
+    id = db.Column(db.Integer, primary_key=True)
+    class_id = db.Column(db.Integer, db.ForeignKey("school_class.id"), nullable=False)
+    subscription_type = db.Column(db.String(20), nullable=False)  # "full_time" | "part_time"
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=True)
+
+
+class OvertimeCharge(db.Model):
+    """An extra hourly charge for a child picked up after the class's overtime
+    cutoff time on a given day."""
+    id = db.Column(db.Integer, primary_key=True)
+    child_id = db.Column(db.Integer, db.ForeignKey("child.id"), nullable=False)
+    date = db.Column(db.Date, nullable=False, default=date.today)
+    hours = db.Column(db.Numeric(5, 2), nullable=False)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    child = db.relationship("Child")
 
 
 class Teacher(UserMixin, db.Model):

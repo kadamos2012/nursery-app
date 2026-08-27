@@ -403,22 +403,39 @@ function MedicalAlertBanner({ notes }) {
 }
 
 function PaymentReminderBanner({ status }) {
-  if (!status || status.paid) return null;
+  const partTime = status?.part_time;
   return (
-    <div style={{
-      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-      background: C.honeySoft, padding: "12px 14px", borderRadius: 14,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <Clock size={16} color="#946515" />
-        <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: "#946515", fontWeight: 700 }}>
-          مصروفات شهر {status.month}/{status.year} لسه متسددتش
-        </span>
-      </div>
-      <span style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 14, color: "#946515" }}>
-        {Math.round(parseFloat(status.amount))} ج
-      </span>
-    </div>
+    <>
+      {status && !status.paid && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+          background: C.honeySoft, padding: "12px 14px", borderRadius: 14,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Clock size={16} color="#946515" />
+            <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: "#946515", fontWeight: 700 }}>
+              مصروفات شهر {status.month}/{status.year} لسه متسددتش
+            </span>
+          </div>
+          <span style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 14, color: "#946515" }}>
+            {Math.round(parseFloat(status.amount))} ج
+          </span>
+        </div>
+      )}
+      {partTime && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+          background: partTime.used >= partTime.max ? C.coralSoft : C.primarySoft, padding: "10px 14px", borderRadius: 14,
+        }}>
+          <span style={{ fontFamily: bodyFont, fontSize: 12, color: partTime.used >= partTime.max ? "#B23A22" : C.primary, fontWeight: 700 }}>
+            أيام الدوام الجزئي هذا الشهر
+          </span>
+          <span style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 13, color: partTime.used >= partTime.max ? "#B23A22" : C.primary }}>
+            {partTime.used} / {partTime.max}
+          </span>
+        </div>
+      )}
+    </>
   );
 }
 

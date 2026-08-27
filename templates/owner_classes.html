@@ -23,6 +23,10 @@
           <a class="row-link" href="{{ url_for('owner_class_students', class_id=c.id) }}">إدارة الطلبة ←</a>
           <br>
           <a class="row-link" style="font-size: 11px;" href="{{ url_for('owner_class_schedule', class_id=c.id) }}">الجدول الأسبوعي ←</a>
+          <br>
+          <a class="row-link" style="font-size: 11px;" href="{{ url_for('owner_class_pricing', class_id=c.id) }}">التسعير ←</a>
+          <br>
+          <a class="row-link" style="font-size: 11px;" href="{{ url_for('owner_class_photos', class_id=c.id) }}">صور الفصل ←</a>
         </td>
       </tr>
       {% endfor %}

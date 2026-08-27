@@ -15,7 +15,7 @@ from models import (
     Trip, TripCostItem, TripClass, TripRegistration,
     EnrollmentRequest, ClassPhoto, SpecialRequest, TeacherClass, WeeklyScheduleItem,
     DailyTask, SalaryHistory, FeeHistory, PickupPerson, StaffCredential, StaffTimeClock,
-    DevelopmentalMilestone, PhotoTag
+    DevelopmentalMilestone, PhotoTag, ClassFeeHistory, OvertimeCharge
 )
 from pywebpush import webpush, WebPushException
 import json as json_lib
@@ -150,35 +150,72 @@ def set_effective_salary(employee_id, new_amount, start_date):
     employee.monthly_salary = new_amount
 
 
-def get_effective_fee(child_id, on_date=None):
+def get_effective_class_fee(class_id, subscription_type, on_date=None):
     on_date = on_date or date.today()
-    record = FeeHistory.query.filter(
-        FeeHistory.child_id == child_id, FeeHistory.start_date <= on_date,
-        (FeeHistory.end_date.is_(None)) | (FeeHistory.end_date >= on_date),
-    ).order_by(FeeHistory.start_date.desc()).first()
+    record = ClassFeeHistory.query.filter(
+        ClassFeeHistory.class_id == class_id, ClassFeeHistory.subscription_type == subscription_type,
+        ClassFeeHistory.start_date <= on_date,
+        (ClassFeeHistory.end_date.is_(None)) | (ClassFeeHistory.end_date >= on_date),
+    ).order_by(ClassFeeHistory.start_date.desc()).first()
     if record:
-        return float(record.amount), record.subscription_type
-    child = Child.query.get(child_id)
-    return (float(child.monthly_fee), child.subscription_type) if child else (0.0, "full_time")
+        return float(record.amount)
+    school_class = SchoolClass.query.get(class_id)
+    if not school_class:
+        return 0.0
+    return float(school_class.full_time_price if subscription_type == "full_time" else school_class.part_time_price)
 
 
-def set_effective_fee(child_id, new_amount, subscription_type, start_date):
-    current = FeeHistory.query.filter_by(child_id=child_id, end_date=None).first()
+def set_effective_class_fee(class_id, subscription_type, new_amount, start_date):
+    current = ClassFeeHistory.query.filter_by(class_id=class_id, subscription_type=subscription_type, end_date=None).first()
     if current:
         if start_date <= current.start_date:
             db.session.delete(current)
         else:
             current.end_date = start_date - timedelta(days=1)
-    db.session.add(FeeHistory(child_id=child_id, amount=new_amount, subscription_type=subscription_type, start_date=start_date, end_date=None))
-    child = Child.query.get(child_id)
-    child.monthly_fee = new_amount
-    child.subscription_type = subscription_type
+    db.session.add(ClassFeeHistory(class_id=class_id, subscription_type=subscription_type, amount=new_amount, start_date=start_date, end_date=None))
+    school_class = SchoolClass.query.get(class_id)
+    if subscription_type == "full_time":
+        school_class.full_time_price = new_amount
+    else:
+        school_class.part_time_price = new_amount
 
 
-def compute_child_expected_fee(child, on_date=None):
-    base_fee, _ = get_effective_fee(child.id, on_date)
+def get_part_time_days_used(child_id, month, year):
+    return AttendanceRecord.query.filter(
+        AttendanceRecord.child_id == child_id, AttendanceRecord.present.is_(True),
+        db.extract("month", AttendanceRecord.date) == month, db.extract("year", AttendanceRecord.date) == year,
+    ).count()
+
+
+def record_overtime_if_applicable(child, checkout_dt):
+    """If a child is picked up after their class's overtime cutoff, logs an
+    OvertimeCharge for the extra hours."""
+    school_class = child.school_class
+    if not school_class or school_class.overtime_start_hour is None or not school_class.overtime_hourly_rate:
+        return
+    cutoff = checkout_dt.replace(hour=school_class.overtime_start_hour, minute=0, second=0, microsecond=0)
+    if checkout_dt <= cutoff:
+        return
+    extra_hours = round((checkout_dt - cutoff).total_seconds() / 3600, 2)
+    if extra_hours <= 0:
+        return
+    amount = extra_hours * float(school_class.overtime_hourly_rate)
+    db.session.add(OvertimeCharge(child_id=child.id, date=checkout_dt.date(), hours=extra_hours, amount=amount))
+
+
+def compute_child_expected_fee(child, on_date=None, month=None, year=None):
+    on_date = on_date or date.today()
+    month = month or on_date.month
+    year = year or on_date.year
+
+    base_fee = get_effective_class_fee(child.class_id, child.subscription_type, on_date)
     addons_total = sum(float(ca.addon.monthly_fee) for ca in ChildAddon.query.filter_by(child_id=child.id).all())
-    subtotal = base_fee + addons_total
+    overtime_total = db.session.query(db.func.coalesce(db.func.sum(OvertimeCharge.amount), 0)).filter(
+        OvertimeCharge.child_id == child.id,
+        db.extract("month", OvertimeCharge.date) == month, db.extract("year", OvertimeCharge.date) == year,
+    ).scalar()
+    subtotal = base_fee + addons_total + float(overtime_total)
+
     if child.discount_type == "fixed":
         discount = float(child.discount_value)
     elif child.discount_type == "percent":
@@ -448,14 +485,19 @@ def child_payment_status(child_id):
     today = date.today()
     payment = Payment.query.filter_by(child_id=child_id, month=today.month, year=today.year).first()
 
+    part_time_info = None
+    if child.subscription_type == "part_time":
+        used = get_part_time_days_used(child_id, today.month, today.year)
+        part_time_info = {"used": used, "max": child.school_class.part_time_max_days}
+
     if payment:
         return jsonify({
             "month": today.month, "year": today.year,
-            "amount": str(payment.amount), "paid": payment.paid,
+            "amount": str(payment.amount), "paid": payment.paid, "part_time": part_time_info,
         })
 
     expected = compute_child_expected_fee(child)
-    return jsonify({"month": today.month, "year": today.year, "amount": str(expected), "paid": False})
+    return jsonify({"month": today.month, "year": today.year, "amount": str(expected), "paid": False, "part_time": part_time_info})
 
 
 @app.route("/api/child/<int:child_id>/announcements")
@@ -854,8 +896,11 @@ def teacher_checkout(child_id):
     today = date.today()
     record = AttendanceRecord.query.filter_by(child_id=child_id, date=today).first()
     if record:
-        record.check_out_time = datetime.utcnow()
+        checkout_utc = datetime.utcnow()
+        record.check_out_time = checkout_utc
         record.check_out_signed_by = signed_by or "غير محدد"
+        checkout_local = checkout_utc + timedelta(hours=2)  # Egypt time (UTC+2, no DST)
+        record_overtime_if_applicable(child, checkout_local)
         db.session.commit()
         notify_child_parents(child_id, "تم الانصراف", f"{child.name} خرج من الحضانة مع {signed_by or 'غير محدد'}")
     return redirect(url_for("teacher_child_log", child_id=child_id))
@@ -930,10 +975,17 @@ def teacher_child_log(child_id):
     parent_names = [Parent.query.get(pc.parent_id).name for pc in ParentChild.query.filter_by(child_id=child_id).all()]
     pickup_names = [p.name for p in PickupPerson.query.filter_by(child_id=child_id).all()]
 
+    part_time_warning = None
+    if child.subscription_type == "part_time":
+        used = get_part_time_days_used(child_id, today.month, today.year)
+        max_days = child.school_class.part_time_max_days
+        if used >= max_days:
+            part_time_warning = f"⚠️ {child.name} استنفد أيام الدوام الجزئي المسموحة الشهر ده ({used}/{max_days})"
+
     return render_template(
         "teacher_child_log.html", child=child, log=log,
         special_requests=SpecialRequest.query.filter_by(child_id=child_id, status="pending").order_by(SpecialRequest.date).all(),
-        attendance=attendance, authorized_names=parent_names + pickup_names,
+        attendance=attendance, authorized_names=parent_names + pickup_names, part_time_warning=part_time_warning,
     )
 
 
@@ -1427,6 +1479,41 @@ def owner_classes():
 DAY_NAMES_AR = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
 
 
+@app.route("/owner/classes/<int:class_id>/photos", methods=["GET", "POST"])
+@login_required
+def owner_class_photos(class_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    school_class = SchoolClass.query.get_or_404(class_id)
+
+    if request.method == "POST":
+        photo_file = request.files.get("photo")
+        caption = request.form.get("caption", "").strip()
+        tagged_child_ids = request.form.getlist("child_ids")
+        if photo_file and photo_file.filename:
+            raw = photo_file.read()
+            if len(raw) <= 3 * 1024 * 1024:
+                photo = ClassPhoto(
+                    class_id=class_id, photo_data=base64.b64encode(raw).decode("ascii"),
+                    photo_mime=photo_file.mimetype or "image/jpeg", caption=caption,
+                )
+                db.session.add(photo)
+                db.session.flush()
+                for cid in tagged_child_ids:
+                    db.session.add(PhotoTag(photo_id=photo.id, child_id=int(cid)))
+                db.session.commit()
+        return redirect(url_for("owner_class_photos", class_id=class_id))
+
+    photos = ClassPhoto.query.filter_by(class_id=class_id).order_by(ClassPhoto.created_at.desc()).all()
+    class_children = Child.query.filter_by(class_id=class_id, archived=False).all()
+    tags_by_photo = {p.id: {t.child_id for t in p.tags} for p in photos}
+    return render_template(
+        "owner_class_photos.html", school_class=school_class, photos=photos,
+        class_children=class_children, tags_by_photo=tags_by_photo,
+    )
+
+
 @app.route("/owner/classes/<int:class_id>/schedule", methods=["GET", "POST"])
 @login_required
 def owner_class_schedule(class_id):
@@ -1487,11 +1574,10 @@ def owner_class_students(class_id):
         name = request.form.get("name", "").strip()
         birth_date = request.form.get("birth_date") or None
         subscription_type = request.form.get("subscription_type", "full_time")
-        monthly_fee = request.form.get("monthly_fee") or 0
         if name:
             db.session.add(Child(
                 class_id=class_id, name=name, birth_date=birth_date,
-                subscription_type=subscription_type, monthly_fee=monthly_fee,
+                subscription_type=subscription_type,
             ))
             db.session.commit()
         return redirect(url_for("owner_class_students", class_id=class_id))
@@ -1501,17 +1587,24 @@ def owner_class_students(class_id):
     parents_by_child = {}
     addons_by_child = {}
     total_due_by_child = {}
+    base_fee_by_child = {}
+    part_time_days_used = {}
+    today = date.today()
     for s in students:
         links = ParentChild.query.filter_by(child_id=s.id).all()
         parents_by_child[s.id] = [Parent.query.get(l.parent_id) for l in links]
         child_addons = ChildAddon.query.filter_by(child_id=s.id).all()
         addons_by_child[s.id] = [ca.addon for ca in child_addons]
         total_due_by_child[s.id] = compute_child_expected_fee(s)
+        base_fee_by_child[s.id] = get_effective_class_fee(class_id, s.subscription_type)
+        if s.subscription_type == "part_time":
+            part_time_days_used[s.id] = get_part_time_days_used(s.id, today.month, today.year)
 
     return render_template(
         "owner_students.html", school_class=school_class, students=students,
         parents_by_child=parents_by_child, addons_by_child=addons_by_child,
-        total_due_by_child=total_due_by_child, today=date.today(), show_archived=show_archived,
+        total_due_by_child=total_due_by_child, today=today, show_archived=show_archived,
+        base_fee_by_child=base_fee_by_child, part_time_days_used=part_time_days_used,
     )
 
 
@@ -1953,25 +2046,50 @@ def owner_tasks():
     return render_template("owner_tasks.html", by_class=by_class, today=today)
 
 
-@app.route("/owner/child/<int:child_id>/fee-history", methods=["GET", "POST"])
+@app.route("/owner/child/<int:child_id>/fee-history")
 @login_required
 def owner_fee_history(child_id):
+    """Legacy route: pricing now lives at the class level. Redirect there."""
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+    child = Child.query.get_or_404(child_id)
+    return redirect(url_for("owner_class_pricing", class_id=child.class_id))
+
+
+@app.route("/owner/classes/<int:class_id>/pricing", methods=["GET", "POST"])
+@login_required
+def owner_class_pricing(class_id):
     if not require_owner():
         return redirect(url_for("unified_login"))
 
-    child = Child.query.get_or_404(child_id)
+    school_class = SchoolClass.query.get_or_404(class_id)
 
     if request.method == "POST":
-        amount = request.form.get("amount")
-        subscription_type = request.form.get("subscription_type", child.subscription_type)
+        form_type = request.form.get("form_type")
         start = request.form.get("start_date") or date.today().isoformat()
-        if amount:
-            set_effective_fee(child_id, float(amount), subscription_type, date.fromisoformat(start))
-            db.session.commit()
-        return redirect(url_for("owner_fee_history", child_id=child_id))
 
-    history = FeeHistory.query.filter_by(child_id=child_id).order_by(FeeHistory.start_date.desc()).all()
-    return render_template("owner_fee_history.html", child=child, history=history, today=date.today())
+        if form_type == "full_time_rate":
+            amount = request.form.get("amount")
+            if amount:
+                set_effective_class_fee(class_id, "full_time", float(amount), date.fromisoformat(start))
+        elif form_type == "part_time_rate":
+            amount = request.form.get("amount")
+            if amount:
+                set_effective_class_fee(class_id, "part_time", float(amount), date.fromisoformat(start))
+        elif form_type == "settings":
+            school_class.part_time_max_days = int(request.form.get("part_time_max_days") or school_class.part_time_max_days)
+            school_class.overtime_start_hour = int(request.form.get("overtime_start_hour") or school_class.overtime_start_hour or 17)
+            school_class.overtime_hourly_rate = float(request.form.get("overtime_hourly_rate") or 0)
+
+        db.session.commit()
+        return redirect(url_for("owner_class_pricing", class_id=class_id))
+
+    full_time_history = ClassFeeHistory.query.filter_by(class_id=class_id, subscription_type="full_time").order_by(ClassFeeHistory.start_date.desc()).all()
+    part_time_history = ClassFeeHistory.query.filter_by(class_id=class_id, subscription_type="part_time").order_by(ClassFeeHistory.start_date.desc()).all()
+    return render_template(
+        "owner_class_pricing.html", school_class=school_class, today=date.today(),
+        full_time_history=full_time_history, part_time_history=part_time_history,
+    )
 
 
 @app.route("/owner/child/<int:child_id>/pickup-people", methods=["GET", "POST"])
@@ -2446,7 +2564,7 @@ def owner_backup_export():
 
     children = Child.query.all()
     add_sheet("الأطفال", ["الاسم", "الفصل", "تاريخ الميلاد", "نوع الاشتراك", "الاشتراك الشهري", "مؤرشف"], [
-        [c.name, c.school_class.name, c.birth_date.isoformat() if c.birth_date else "", c.subscription_type, float(c.monthly_fee), "نعم" if c.archived else "لا"]
+        [c.name, c.school_class.name, c.birth_date.isoformat() if c.birth_date else "", c.subscription_type, get_effective_class_fee(c.class_id, c.subscription_type), "نعم" if c.archived else "لا"]
         for c in children
     ])
 

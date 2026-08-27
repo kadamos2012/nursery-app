@@ -1,0 +1,42 @@
+{% extends "owner_base.html" %}
+{% block header_title %}صور فصل {{ school_class.name }}{% endblock %}
+{% set active = "classes" %}
+{% block content %}
+<a class="row-link" href="{{ url_for('owner_classes') }}">← رجوع للفصول</a>
+
+<div class="card" style="margin-top: 14px;">
+  <h2>رفع صورة جديدة</h2>
+  <form class="inline" method="POST" enctype="multipart/form-data">
+    <input type="file" name="photo" accept="image/*" required>
+    <textarea name="caption" rows="2" placeholder="وصف الصورة (اختياري)"></textarea>
+    <label style="font-size: 12px; color: #5B6B5E;">مين موجود في الصورة؟ (اختياري، لو محددتيش هتظهر لكل الفصل)</label>
+    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:6px;">
+      {% for c in class_children %}
+      <label style="display:flex; align-items:center; gap:5px; background:#F4F7F1; padding:6px 10px; border-radius:20px; font-size:12px;">
+        <input type="checkbox" name="child_ids" value="{{ c.id }}" style="width:auto;">
+        {{ c.name }}
+      </label>
+      {% endfor %}
+    </div>
+    <button type="submit" class="primary">رفع الصورة</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>الصور ({{ photos|length }})</h2>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+    {% for p in photos %}
+    <div style="border-radius: 12px; overflow: hidden; background: #F4F7F1;">
+      <img src="{{ url_for('serve_class_photo', photo_id=p.id) }}" style="width:100%; height:120px; object-fit:cover; display:block;">
+      <div style="padding: 6px 8px; font-size: 10.5px; color: #5B6B5E;">
+        {% if p.caption %}{{ p.caption }}<br>{% endif %}
+        {% set tagged = tags_by_photo.get(p.id) %}
+        {% if tagged %}
+          <span style="color:#2F5D50; font-weight:700;">👤 {% for c in class_children %}{% if c.id in tagged %}{{ c.name }}{% if not loop.last %}، {% endif %}{% endif %}{% endfor %}</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
