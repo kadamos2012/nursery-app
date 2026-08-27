@@ -461,13 +461,18 @@ def owner_class_students(class_id):
 
     if request.method == "POST":
         name = request.form.get("name", "").strip()
+        birth_date = request.form.get("birth_date") or None
         if name:
-            db.session.add(Child(class_id=class_id, name=name))
+            db.session.add(Child(class_id=class_id, name=name, birth_date=birth_date))
             db.session.commit()
         return redirect(url_for("owner_class_students", class_id=class_id))
 
     students = Child.query.filter_by(class_id=class_id).all()
-    return render_template("owner_students.html", school_class=school_class, students=students)
+    parents_by_child = {}
+    for s in students:
+        links = ParentChild.query.filter_by(child_id=s.id).all()
+        parents_by_child[s.id] = [Parent.query.get(l.parent_id) for l in links]
+    return render_template("owner_students.html", school_class=school_class, students=students, parents_by_child=parents_by_child, today=date.today())
 
 
 @app.route("/owner/activities", methods=["GET", "POST"])
@@ -541,6 +546,63 @@ def owner_pay_salary(employee_id):
     payment.paid_date = today
     db.session.commit()
     return redirect(url_for("owner_staff"))
+
+
+@app.route("/owner/parents", methods=["GET", "POST"])
+@login_required
+def owner_parents():
+    if not require_owner():
+        return redirect(url_for("owner_login"))
+
+    if request.method == "POST":
+        form_type = request.form.get("form_type")
+
+        if form_type == "new_parent":
+            name = request.form.get("name", "").strip()
+            phone = request.form.get("phone", "").strip()
+            password = request.form.get("password", "").strip()
+            child_id = request.form.get("child_id")
+            if name and phone and password:
+                existing = Parent.query.filter_by(phone=phone).first()
+                if existing:
+                    return render_template_owner_parents_error("رقم الهاتف ده مسجل قبل كده لولي أمر تاني")
+                new_parent = Parent(name=name, phone=phone)
+                new_parent.set_password(password)
+                db.session.add(new_parent)
+                db.session.flush()
+                if child_id:
+                    db.session.add(ParentChild(parent_id=new_parent.id, child_id=int(child_id)))
+                db.session.commit()
+
+        elif form_type == "link_existing":
+            parent_id = request.form.get("parent_id")
+            child_id = request.form.get("child_id")
+            if parent_id and child_id:
+                exists = ParentChild.query.filter_by(parent_id=parent_id, child_id=child_id).first()
+                if not exists:
+                    db.session.add(ParentChild(parent_id=parent_id, child_id=child_id))
+                    db.session.commit()
+
+        return redirect(url_for("owner_parents"))
+
+    parents = Parent.query.all()
+    children = Child.query.all()
+    links_by_parent = {}
+    for p in parents:
+        links = ParentChild.query.filter_by(parent_id=p.id).all()
+        links_by_parent[p.id] = [Child.query.get(l.child_id) for l in links]
+
+    return render_template("owner_parents.html", parents=parents, children=children, links_by_parent=links_by_parent)
+
+
+def render_template_owner_parents_error(message):
+    parents = Parent.query.all()
+    children = Child.query.all()
+    links_by_parent = {}
+    for p in parents:
+        links = ParentChild.query.filter_by(parent_id=p.id).all()
+        links_by_parent[p.id] = [Child.query.get(l.child_id) for l in links]
+    return render_template("owner_parents.html", parents=parents, children=children, links_by_parent=links_by_parent, error=message)
 
 
 @app.route("/owner/expenses", methods=["GET", "POST"])

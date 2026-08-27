@@ -49,6 +49,7 @@
     <nav>
       <a href="{{ url_for('owner_dashboard') }}" class="{{ 'active' if active == 'dashboard' }}">نظرة عامة</a>
       <a href="{{ url_for('owner_classes') }}" class="{{ 'active' if active == 'classes' }}">الفصول والطلبة</a>
+      <a href="{{ url_for('owner_parents') }}" class="{{ 'active' if active == 'parents' }}">أولياء الأمور</a>
       <a href="{{ url_for('owner_activities') }}" class="{{ 'active' if active == 'activities' }}">الأنشطة</a>
       <a href="{{ url_for('owner_staff') }}" class="{{ 'active' if active == 'staff' }}">الموظفين</a>
       <a href="{{ url_for('owner_expenses') }}" class="{{ 'active' if active == 'expenses' }}">المصروفات</a>

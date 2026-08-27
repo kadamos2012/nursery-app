@@ -1,0 +1,68 @@
+{% extends "owner_base.html" %}
+{% block header_title %}أولياء الأمور{% endblock %}
+{% set active = "parents" %}
+{% block content %}
+{% if error %}<div class="card" style="background:#F8DFD9;color:#B23A22;">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <h2>إضافة ولي أمر جديد (أب أو أم)</h2>
+  <form class="inline" method="POST">
+    <input type="hidden" name="form_type" value="new_parent">
+    <input type="text" name="name" placeholder="الاسم، مثال: والد يوسف / والدة يوسف" required>
+    <input type="tel" name="phone" placeholder="رقم الهاتف (يستخدم لتسجيل الدخول)" required>
+    <input type="text" name="password" placeholder="كلمة المرور" required>
+    <label style="font-size: 12px; color: #5B6B5E;">ربط بطفل (اختياري الآن، ممكن تربطي بعدين)</label>
+    <select name="child_id">
+      <option value="">بدون ربط الآن</option>
+      {% for c in children %}
+        <option value="{{ c.id }}">{{ c.name }} — {{ c.school_class.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="primary">إضافة ولي الأمر</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>ربط ولي أمر موجود بطفل تاني</h2>
+  <p style="font-size: 12px; color: #5B6B5E; margin-top: -4px;">مفيد لو الأب مسجل قبل كده وعايزة تربطيه بطفل تاني (إخوة)، أو نسيتي تربطيه وقت الإضافة</p>
+  <form class="inline" method="POST">
+    <input type="hidden" name="form_type" value="link_existing">
+    <select name="parent_id" required>
+      <option value="">اختاري ولي الأمر</option>
+      {% for p in parents %}
+        <option value="{{ p.id }}">{{ p.name }} ({{ p.phone }})</option>
+      {% endfor %}
+    </select>
+    <select name="child_id" required>
+      <option value="">اختاري الطفل</option>
+      {% for c in children %}
+        <option value="{{ c.id }}">{{ c.name }} — {{ c.school_class.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="primary">ربط</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>كل أولياء الأمور ({{ parents|length }})</h2>
+  <table>
+    <thead><tr><th>الاسم</th><th>رقم الهاتف</th><th>الأبناء المرتبطين</th></tr></thead>
+    <tbody>
+      {% for p in parents %}
+      <tr>
+        <td>{{ p.name }}</td>
+        <td style="direction: ltr; text-align: right;">{{ p.phone }}</td>
+        <td>
+          {% set kids = links_by_parent.get(p.id, []) %}
+          {% if kids %}
+            {% for k in kids %}{{ k.name }}{% if not loop.last %}، {% endif %}{% endfor %}
+          {% else %}
+            <span style="color:#B23A22;">مفيش أبناء مربوطين</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -8,6 +8,8 @@
   <h2>تسجيل طالب جديد في {{ school_class.name }}</h2>
   <form class="inline" method="POST">
     <input type="text" name="name" placeholder="اسم الطفل" required>
+    <label style="font-size: 12px; color: #5B6B5E;">تاريخ الميلاد</label>
+    <input type="date" name="birth_date">
     <button type="submit" class="primary">تسجيل الطالب</button>
   </form>
 </div>
@@ -15,10 +17,30 @@
 <div class="card">
   <h2>الطلبة المسجلين ({{ students|length }})</h2>
   <table>
-    <thead><tr><th>الاسم</th></tr></thead>
+    <thead><tr><th>الاسم</th><th>تاريخ الميلاد</th><th>السن</th><th>أولياء الأمور</th></tr></thead>
     <tbody>
       {% for s in students %}
-      <tr><td>{{ s.name }}</td></tr>
+      <tr>
+        <td>{{ s.name }}</td>
+        <td>{{ s.birth_date.strftime('%d/%m/%Y') if s.birth_date else '—' }}</td>
+        <td>
+          {% if s.birth_date %}
+            {% set age_days = (today - s.birth_date).days %}
+            {% set years = (age_days / 365.25) | int %}
+            {% set months = ((age_days % 365.25) / 30.4) | int %}
+            {{ years }} سنة{% if months %} و{{ months }} شهور{% endif %}
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% set plist = parents_by_child.get(s.id, []) %}
+          {% if plist %}
+            {% for p in plist %}{{ p.name }}{% if not loop.last %}، {% endif %}{% endfor %}
+          {% else %}
+            <span style="color:#B23A22;">لا يوجد</span>
+          {% endif %}
+          — <a class="row-link" href="{{ url_for('owner_parents') }}">إدارة ←</a>
+        </td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>
