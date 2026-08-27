@@ -40,6 +40,13 @@
     <h1>تحديث {{ child.name }} — النهاردة</h1>
   </header>
 
+  {% if child.medical_notes %}
+  <div style="background:#F8DFD9; color:#B23A22; margin:16px; padding:12px 14px; border-radius:12px; font-size:13px; font-weight:700; display:flex; align-items:flex-start; gap:8px;">
+    <span style="font-size:16px;">⚠️</span>
+    <span>تنبيه طبي: {{ child.medical_notes }}</span>
+  </div>
+  {% endif %}
+
   <form method="POST">
     <div>
       <span class="section-label">المزاج</span>

@@ -14,6 +14,7 @@ from models import (
 )
 from pywebpush import webpush, WebPushException
 import json as json_lib
+import base64
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-change-me")
@@ -673,6 +674,46 @@ def owner_child_addons(child_id):
     all_addons = Addon.query.filter_by(active=True).all()
     active_ids = {ca.addon_id for ca in ChildAddon.query.filter_by(child_id=child_id).all()}
     return render_template("owner_child_addons.html", child=child, all_addons=all_addons, active_ids=active_ids)
+
+
+@app.route("/owner/child/<int:child_id>/profile", methods=["GET", "POST"])
+@login_required
+def owner_child_profile(child_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    child = Child.query.get_or_404(child_id)
+
+    if request.method == "POST":
+        child.medical_notes = request.form.get("medical_notes", "").strip()
+
+        photo_file = request.files.get("photo")
+        if photo_file and photo_file.filename:
+            raw = photo_file.read()
+            if len(raw) > 3 * 1024 * 1024:
+                return render_template("owner_child_profile.html", child=child, error="حجم الصورة كبير أوي، اختاري صورة أصغر من 3 ميجا")
+            child.photo_data = base64.b64encode(raw).decode("ascii")
+            child.photo_mime = photo_file.mimetype or "image/jpeg"
+
+        db.session.commit()
+        return redirect(url_for("owner_class_students", class_id=child.class_id))
+
+    return render_template("owner_child_profile.html", child=child, error=None)
+
+
+@app.route("/child/<int:child_id>/photo")
+@login_required
+def child_photo(child_id):
+    child = Child.query.get_or_404(child_id)
+
+    if current_role() == "parent" and not child_belongs_to_parent(child_id, current_user.id):
+        return "غير مصرح", 403
+
+    if not child.photo_data:
+        return "", 404
+
+    raw = base64.b64decode(child.photo_data)
+    return app.response_class(raw, mimetype=child.photo_mime or "image/jpeg")
 
 
 @app.route("/owner/expenses", methods=["GET", "POST"])

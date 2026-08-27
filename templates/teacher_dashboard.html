@@ -39,9 +39,16 @@
       {% set log = logs_today.get(child.id) %}
       <a class="child-card" href="{{ url_for('teacher_child_log', child_id=child.id) }}">
         <div class="child-info">
-          <div class="avatar">{{ child.name[0] }}</div>
+          {% if child.photo_data %}
+            <img src="{{ url_for('child_photo', child_id=child.id) }}" class="avatar" style="object-fit:cover;">
+          {% else %}
+            <div class="avatar">{{ child.name[0] }}</div>
+          {% endif %}
           <div>
-            <div class="name">{{ child.name }}</div>
+            <div class="name">
+              {{ child.name }}
+              {% if child.medical_notes %}<span style="color:#B23A22;">⚠</span>{% endif %}
+            </div>
             <div class="status">
               {% if log and log.mood %}
                 آخر تحديث: {{ log.mood }} {{ log.meal_status or '' }}

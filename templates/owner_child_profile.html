@@ -1,0 +1,35 @@
+{% extends "owner_base.html" %}
+{% block header_title %}الملف الطبي وصورة {{ child.name }}{% endblock %}
+{% set active = "classes" %}
+{% block content %}
+<a class="row-link" href="{{ url_for('owner_class_students', class_id=child.class_id) }}">← رجوع لطلبة الفصل</a>
+
+{% if error %}<div class="card" style="background:#F8DFD9;color:#B23A22; margin-top:14px;">{{ error }}</div>{% endif %}
+
+<div class="card" style="margin-top: 14px; text-align: center;">
+  {% if child.photo_data %}
+    <img src="{{ url_for('child_photo', child_id=child.id) }}" alt="{{ child.name }}"
+         style="width: 110px; height: 110px; border-radius: 50%; object-fit: cover; margin-bottom: 10px;">
+  {% else %}
+    <div style="width: 110px; height: 110px; border-radius: 50%; background: #DCEAE3; color: #2F5D50;
+                display: flex; align-items: center; justify-content: center; margin: 0 auto 10px;
+                font-family: 'Cairo', sans-serif; font-weight: 800; font-size: 34px;">
+      {{ child.name[0] }}
+    </div>
+  {% endif %}
+  <div style="font-family: 'Cairo', sans-serif; font-weight: 700; font-size: 15px;">{{ child.name }}</div>
+</div>
+
+<div class="card">
+  <h2>تعديل الصورة والمعلومات الطبية</h2>
+  <form class="inline" method="POST" enctype="multipart/form-data">
+    <label style="font-size: 12px; color: #5B6B5E;">صورة الطفل</label>
+    <input type="file" name="photo" accept="image/*">
+
+    <label style="font-size: 12px; color: #5B6B5E; margin-top: 6px;">حساسية أو أمراض مزمنة (اختياري)</label>
+    <textarea name="medical_notes" rows="4" placeholder="مثال: حساسية من الفول السوداني، ربو، سكر...">{{ child.medical_notes or '' }}</textarea>
+
+    <button type="submit" class="primary">حفظ</button>
+  </form>
+</div>
+{% endblock %}

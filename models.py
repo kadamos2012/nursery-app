@@ -61,6 +61,9 @@ class Child(db.Model):
     name = db.Column(db.String(150), nullable=False)
     birth_date = db.Column(db.Date, nullable=True)
     photo_url = db.Column(db.String(255), nullable=True)
+    photo_data = db.Column(db.Text, nullable=True)   # base64-encoded image
+    photo_mime = db.Column(db.String(50), nullable=True)
+    medical_notes = db.Column(db.Text, nullable=True)  # allergies / chronic conditions
 
     subscription_type = db.Column(db.String(20), nullable=False, default="full_time")  # "full_time" | "part_time"
     monthly_fee = db.Column(db.Numeric(10, 2), nullable=False, default=0)

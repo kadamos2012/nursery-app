@@ -27,7 +27,7 @@
 <div class="card">
   <h2>الطلبة المسجلين ({{ students|length }})</h2>
   <table>
-    <thead><tr><th>الاسم</th><th>السن</th><th>نوع الاشتراك</th><th>الاشتراك الأساسي</th><th>إضافي</th><th>الإجمالي</th></tr></thead>
+    <thead><tr><th>الاسم</th><th>السن</th><th>نوع الاشتراك</th><th>الاشتراك الأساسي</th><th>إضافي</th><th>الإجمالي</th><th></th></tr></thead>
     <tbody>
       {% for s in students %}
       <tr>
@@ -58,6 +58,15 @@
           <br><a class="row-link" style="font-size: 11px;" href="{{ url_for('owner_child_addons', child_id=s.id) }}">إدارة ←</a>
         </td>
         <td style="font-weight: 700;">{{ "%.0f"|format(total_due_by_child.get(s.id, 0)) }} ج</td>
+        <td>
+          {% if s.photo_data %}
+            <img src="{{ url_for('child_photo', child_id=s.id) }}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+          {% endif %}
+          {% if s.medical_notes %}
+            <div style="font-size:10.5px;color:#B23A22;font-weight:700;margin-top:2px;">⚠ يوجد ملاحظة طبية</div>
+          {% endif %}
+          <a class="row-link" style="font-size: 11px;" href="{{ url_for('owner_child_profile', child_id=s.id) }}">الصورة/الطبي ←</a>
+        </td>
       </tr>
       {% endfor %}
     </tbody>
