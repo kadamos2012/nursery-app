@@ -604,6 +604,60 @@ function SpecialRequestCard({ apiFetch, childId }) {
   );
 }
 
+function WeeklyScheduleCard({ apiFetch, childId }) {
+  const [schedule, setSchedule] = useState(null);
+  const [showFullWeek, setShowFullWeek] = useState(false);
+
+  useEffect(() => {
+    if (!childId) return;
+    apiFetch(`/api/child/${childId}/weekly-schedule`).then(setSchedule).catch(() => {});
+  }, [childId, apiFetch]);
+
+  if (!schedule) return null;
+  const hasAnyItems = schedule.days.some((d) => d.items.length > 0);
+  if (!hasAnyItems) return null;
+
+  const todayDay = schedule.days[schedule.today_index];
+  const daysToShow = showFullWeek ? schedule.days : [todayDay];
+
+  return (
+    <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: "0 2px 10px rgba(47,93,80,0.06)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <CalendarCheck size={17} color={C.primary} />
+          <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: C.ink }}>جدول الأسبوع</span>
+        </div>
+        <button onClick={() => setShowFullWeek(!showFullWeek)} className="press" style={{ background: C.primarySoft, color: C.primary, border: "none", borderRadius: 10, padding: "5px 10px", fontFamily: bodyFont, fontSize: 11, fontWeight: 700 }}>
+          {showFullWeek ? "النهاردة بس" : "كل الأسبوع"}
+        </button>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {daysToShow.map((day) => (
+          <div key={day.index}>
+            <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, color: day.index === schedule.today_index ? C.primary : C.inkSoft, marginBottom: 6 }}>
+              {day.name} {day.index === schedule.today_index && "(النهاردة)"}
+            </div>
+            {day.items.length === 0 ? (
+              <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.inkSoft, paddingRight: 4 }}>مفيش نشاط مسجل</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {day.items.map((item, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, background: C.bg, borderRadius: 10, padding: "8px 10px" }}>
+                    {item.icon && <span style={{ fontSize: 15 }}>{item.icon}</span>}
+                    <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.ink, flex: 1 }}>{item.activity}</span>
+                    {item.time_label && <span style={{ fontFamily: bodyFont, fontSize: 10.5, color: C.inkSoft }}>{item.time_label}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function HomeTab({ apiFetch, childId, notifications, medicalNotes }) {
   const [today, setToday] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState(null);
@@ -629,6 +683,7 @@ function HomeTab({ apiFetch, childId, notifications, medicalNotes }) {
       {error && <ErrorNote message={error} />}
       <MedicalAlertBanner notes={medicalNotes} />
       <PaymentReminderBanner status={paymentStatus} />
+      <WeeklyScheduleCard apiFetch={apiFetch} childId={childId} />
       <AnnouncementsCard announcements={announcements} />
       <TripsCard apiFetch={apiFetch} childId={childId} />
       <ClassPhotosCard apiFetch={apiFetch} childId={childId} />

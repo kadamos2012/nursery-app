@@ -321,6 +321,21 @@ class ClassPhoto(db.Model):
     school_class = db.relationship("SchoolClass")
 
 
+class WeeklyScheduleItem(db.Model):
+    """A recurring weekly curriculum slot for a class (e.g. Sunday 9:00 — Art).
+    Set up once by the owner; repeats automatically every week with no daily
+    input needed from the teacher."""
+    id = db.Column(db.Integer, primary_key=True)
+    class_id = db.Column(db.Integer, db.ForeignKey("school_class.id"), nullable=False)
+    day_of_week = db.Column(db.Integer, nullable=False)  # 0=Sunday ... 6=Saturday
+    time_label = db.Column(db.String(30), nullable=True)  # e.g. "9:00 - 9:30"
+    activity = db.Column(db.String(150), nullable=False)
+    icon = db.Column(db.String(10), nullable=True)  # an emoji, optional
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+
+    school_class = db.relationship("SchoolClass")
+
+
 class SpecialRequest(db.Model):
     """A note from a parent to the teacher/owner about their child (medication time,
     specific clothing needed, etc.), with an acknowledgement flow."""

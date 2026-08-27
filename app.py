@@ -13,7 +13,7 @@ from models import (
     Owner, Employee, SalaryPayment, Expense, Activity, Addon, ChildAddon,
     PaymentMethod, Advance, ExpenseCategory, Announcement,
     Trip, TripCostItem, TripClass, TripRegistration,
-    EnrollmentRequest, ClassPhoto, SpecialRequest, TeacherClass
+    EnrollmentRequest, ClassPhoto, SpecialRequest, TeacherClass, WeeklyScheduleItem
 )
 from pywebpush import webpush, WebPushException
 import json as json_lib
@@ -488,6 +488,32 @@ def child_special_requests(child_id):
         "acknowledged_by_role": r.acknowledged_by_role, "acknowledged_by_name": r.acknowledged_by_name,
         "created_at": r.created_at.isoformat(),
     } for r in requests_list])
+
+
+@app.route("/api/child/<int:child_id>/weekly-schedule")
+@login_required
+def child_weekly_schedule(child_id):
+    if current_role() == "parent" and not child_belongs_to_parent(child_id, current_user.id):
+        return jsonify({"error": "غير مصرح"}), 403
+
+    child = Child.query.get_or_404(child_id)
+    items = WeeklyScheduleItem.query.filter_by(class_id=child.class_id).order_by(
+        WeeklyScheduleItem.day_of_week, WeeklyScheduleItem.sort_order
+    ).all()
+
+    by_day = {i: [] for i in range(7)}
+    for item in items:
+        by_day[item.day_of_week].append({
+            "time_label": item.time_label, "activity": item.activity, "icon": item.icon,
+        })
+
+    day_names = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
+    today_weekday = (date.today().weekday() + 1) % 7  # Python: Mon=0 -> convert to Sun=0
+
+    return jsonify({
+        "today_index": today_weekday,
+        "days": [{"index": i, "name": day_names[i], "items": by_day[i]} for i in range(7)],
+    })
 
 
 @app.route("/api/child/<int:child_id>/messages", methods=["GET", "POST"])
@@ -1130,6 +1156,56 @@ def owner_classes():
     classes = SchoolClass.query.all()
     counts = {c.id: Child.query.filter_by(class_id=c.id).count() for c in classes}
     return render_template("owner_classes.html", classes=classes, counts=counts)
+
+
+DAY_NAMES_AR = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
+
+
+@app.route("/owner/classes/<int:class_id>/schedule", methods=["GET", "POST"])
+@login_required
+def owner_class_schedule(class_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    school_class = SchoolClass.query.get_or_404(class_id)
+
+    if request.method == "POST":
+        day = int(request.form.get("day_of_week"))
+        time_label = request.form.get("time_label", "").strip()
+        activity = request.form.get("activity", "").strip()
+        icon = request.form.get("icon", "").strip()
+        if activity:
+            count_today = WeeklyScheduleItem.query.filter_by(class_id=class_id, day_of_week=day).count()
+            db.session.add(WeeklyScheduleItem(
+                class_id=class_id, day_of_week=day, time_label=time_label,
+                activity=activity, icon=icon, sort_order=count_today,
+            ))
+            db.session.commit()
+        return redirect(url_for("owner_class_schedule", class_id=class_id))
+
+    items = WeeklyScheduleItem.query.filter_by(class_id=class_id).order_by(
+        WeeklyScheduleItem.day_of_week, WeeklyScheduleItem.sort_order
+    ).all()
+    by_day = {i: [] for i in range(7)}
+    for item in items:
+        by_day[item.day_of_week].append(item)
+
+    return render_template(
+        "owner_class_schedule.html", school_class=school_class, by_day=by_day, day_names=DAY_NAMES_AR
+    )
+
+
+@app.route("/owner/schedule-items/<int:item_id>/delete", methods=["POST"])
+@login_required
+def owner_delete_schedule_item(item_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    item = WeeklyScheduleItem.query.get_or_404(item_id)
+    class_id = item.class_id
+    db.session.delete(item)
+    db.session.commit()
+    return redirect(url_for("owner_class_schedule", class_id=class_id))
 
 
 @app.route("/owner/classes/<int:class_id>/students", methods=["GET", "POST"])

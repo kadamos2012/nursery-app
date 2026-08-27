@@ -19,7 +19,11 @@
       <tr>
         <td>{{ c.name }}</td>
         <td>{{ counts[c.id] }}</td>
-        <td><a class="row-link" href="{{ url_for('owner_class_students', class_id=c.id) }}">إدارة الطلبة ←</a></td>
+        <td>
+          <a class="row-link" href="{{ url_for('owner_class_students', class_id=c.id) }}">إدارة الطلبة ←</a>
+          <br>
+          <a class="row-link" style="font-size: 11px;" href="{{ url_for('owner_class_schedule', class_id=c.id) }}">الجدول الأسبوعي ←</a>
+        </td>
       </tr>
       {% endfor %}
     </tbody>
