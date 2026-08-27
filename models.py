@@ -50,6 +50,8 @@ class Parent(UserMixin, db.Model):
     name = db.Column(db.String(150), nullable=False)
     phone = db.Column(db.String(30), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
+    telegram_chat_id = db.Column(db.String(50), nullable=True)
+    telegram_link_code = db.Column(db.String(20), nullable=True, unique=True)
 
     def set_password(self, raw):
         self.password_hash = generate_password_hash(raw)

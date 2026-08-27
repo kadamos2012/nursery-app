@@ -18,6 +18,8 @@ from models import (
 from pywebpush import webpush, WebPushException
 import json as json_lib
 import base64
+import secrets
+import requests
 from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
@@ -42,6 +44,45 @@ app.config["SESSION_COOKIE_SAMESITE"] = "None"
 app.config["SESSION_COOKIE_SECURE"] = True
 
 db.init_app(app)
+
+# ---------------------------------------------------------------------------
+# Telegram bot (free alternative notification channel)
+# ---------------------------------------------------------------------------
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_BOT_USERNAME = os.environ.get("TELEGRAM_BOT_USERNAME", "")
+BACKEND_URL = os.environ.get("BACKEND_URL") or os.environ.get("RENDER_EXTERNAL_URL", "")
+
+
+def send_telegram_message(chat_id, text):
+    if not TELEGRAM_BOT_TOKEN:
+        return
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": chat_id, "text": text},
+            timeout=8,
+        )
+    except Exception:
+        pass  # notifications are best-effort
+
+
+def setup_telegram_webhook():
+    """Registers our webhook URL with Telegram so it forwards bot messages to us.
+    Safe to call on every startup — Telegram just re-confirms the same URL."""
+    if not TELEGRAM_BOT_TOKEN or not BACKEND_URL:
+        return
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook",
+            json={"url": f"{BACKEND_URL.rstrip('/')}/telegram/webhook"},
+            timeout=8,
+        )
+    except Exception:
+        pass
+
+
+with app.app_context():
+    setup_telegram_webhook()
 
 # Allow the mobile web app (served from a different domain, e.g. claude.ai
 # artifacts or your own frontend host) to call this API with cookies.
@@ -90,34 +131,82 @@ def child_belongs_to_parent(child_id, parent_id):
 
 
 def notify_child_parents(child_id, title, body):
-    """Sends a Web Push notification to every parent linked to this child."""
-    if not VAPID_PRIVATE_KEY:
-        return  # push not configured yet
-
+    """Sends a Web Push notification and/or a Telegram message to every parent
+    linked to this child, depending on what each parent has set up."""
     links = ParentChild.query.filter_by(child_id=child_id).all()
     parent_ids = [l.parent_id for l in links]
-    subs = PushSubscription.query.filter(PushSubscription.parent_id.in_(parent_ids)).all()
 
-    for sub in subs:
-        try:
-            webpush(
-                subscription_info={
-                    "endpoint": sub.endpoint,
-                    "keys": {"p256dh": sub.p256dh, "auth": sub.auth},
-                },
-                data=json_lib.dumps({"title": title, "body": body}),
-                vapid_private_key=VAPID_PRIVATE_KEY,
-                vapid_claims=dict(VAPID_CLAIMS),
-            )
-        except WebPushException:
-            # subscription likely expired/revoked — remove it
-            db.session.delete(sub)
-    db.session.commit()
+    if VAPID_PRIVATE_KEY:
+        subs = PushSubscription.query.filter(PushSubscription.parent_id.in_(parent_ids)).all()
+        for sub in subs:
+            try:
+                webpush(
+                    subscription_info={
+                        "endpoint": sub.endpoint,
+                        "keys": {"p256dh": sub.p256dh, "auth": sub.auth},
+                    },
+                    data=json_lib.dumps({"title": title, "body": body}),
+                    vapid_private_key=VAPID_PRIVATE_KEY,
+                    vapid_claims=dict(VAPID_CLAIMS),
+                )
+            except WebPushException:
+                db.session.delete(sub)
+        db.session.commit()
+
+    telegram_parents = Parent.query.filter(
+        Parent.id.in_(parent_ids), Parent.telegram_chat_id.isnot(None)
+    ).all()
+    for p in telegram_parents:
+        send_telegram_message(p.telegram_chat_id, f"{title}\n{body}")
 
 
 # ---------------------------------------------------------------------------
 # Auth
 # ---------------------------------------------------------------------------
+
+@app.route("/telegram/webhook", methods=["POST"])
+def telegram_webhook():
+    update = request.get_json(silent=True) or {}
+    message = update.get("message", {})
+    text = message.get("text", "")
+    chat_id = message.get("chat", {}).get("id")
+
+    if text.startswith("/start") and chat_id:
+        parts = text.split(maxsplit=1)
+        if len(parts) == 2:
+            code = parts[1].strip()
+            parent = Parent.query.filter_by(telegram_link_code=code).first()
+            if parent:
+                parent.telegram_chat_id = str(chat_id)
+                db.session.commit()
+                send_telegram_message(chat_id, f"تم الربط بنجاح ✅ هتوصلك هنا كل تحديثات {parent.name.replace('ولية أمر ', '').replace('والد ', '')} من الحضانة.")
+            else:
+                send_telegram_message(chat_id, "الكود مش صحيح أو منتهي. جربي تربطي تاني من التطبيق.")
+        else:
+            send_telegram_message(chat_id, "أهلاً 👋 افتحي تطبيق الحضانة واضغطي على 'ربط تليجرام' عشان نوصلك بحسابك.")
+
+    return {"ok": True}
+
+
+@app.route("/api/parent/telegram-link")
+@login_required
+def api_parent_telegram_link():
+    if current_role() != "parent":
+        return jsonify({"error": "غير مصرح"}), 403
+
+    if current_user.telegram_chat_id:
+        return jsonify({"linked": True})
+
+    if not current_user.telegram_link_code:
+        current_user.telegram_link_code = secrets.token_urlsafe(8)
+        db.session.commit()
+
+    bot_username = TELEGRAM_BOT_USERNAME
+    return jsonify({
+        "linked": False,
+        "link": f"https://t.me/{bot_username}?start={current_user.telegram_link_code}" if bot_username else None,
+    })
+
 
 @app.route("/api/auth/login", methods=["POST"])
 def api_login():

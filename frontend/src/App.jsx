@@ -161,7 +161,13 @@ function NotificationBanner({ notifications }) {
 // ---------------------------------------------------------------------------
 // Settings sheet
 // ---------------------------------------------------------------------------
-function SettingsSheet({ onClose, notifications }) {
+function SettingsSheet({ onClose, notifications, apiFetch }) {
+  const [telegram, setTelegram] = useState(null);
+
+  useEffect(() => {
+    apiFetch("/api/parent/telegram-link").then(setTelegram).catch(() => {});
+  }, [apiFetch]);
+
   return (
     <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 20, display: "flex", alignItems: "flex-end" }}>
       <div style={{ background: "white", width: "100%", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20 }} dir="rtl">
@@ -180,6 +186,22 @@ function SettingsSheet({ onClose, notifications }) {
             <button onClick={notifications.enable} disabled={notifications.status === "denied"} style={{ background: C.primary, color: "white", border: "none", borderRadius: 10, padding: "6px 12px", fontFamily: bodyFont, fontSize: 12, fontWeight: 700, opacity: notifications.status === "denied" ? 0.5 : 1 }}>
               {notifications.status === "denied" ? "محظورة" : "تفعيل"}
             </button>
+          )}
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${C.line}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Send size={16} color={telegram?.linked ? C.primary : C.inkSoft} />
+            <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.ink }}>إشعارات تليجرام</span>
+          </div>
+          {telegram?.linked ? (
+            <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.primary, fontWeight: 700 }}>متصل ✅</span>
+          ) : telegram?.link ? (
+            <a href={telegram.link} target="_blank" rel="noreferrer" style={{ background: C.primary, color: "white", borderRadius: 10, padding: "6px 12px", fontFamily: bodyFont, fontSize: 12, fontWeight: 700, textDecoration: "none" }}>
+              ربط تليجرام
+            </a>
+          ) : (
+            <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.inkSoft }}>غير متاح حالياً</span>
           )}
         </div>
 
@@ -729,7 +751,7 @@ export default function App() {
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800&family=Tajawal:wght@400;500;700&display=swap');
         * { box-sizing: border-box; }`}</style>
 
-      {showSettings && <SettingsSheet onClose={() => setShowSettings(false)} notifications={notifications} />}
+      {showSettings && <SettingsSheet onClose={() => setShowSettings(false)} notifications={notifications} apiFetch={apiFetch} />}
       {showChildSwitcher && (
         <ChildSwitcherSheet
           children={children}
