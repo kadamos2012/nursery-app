@@ -17,6 +17,9 @@ from models import (
 from pywebpush import webpush, WebPushException
 import json as json_lib
 import base64
+from io import BytesIO
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-change-me")
@@ -1172,16 +1175,7 @@ def owner_delete_payment_method(method_id):
     return redirect(url_for("owner_payment_methods"))
 
 
-@app.route("/owner/payment-methods/statement")
-@login_required
-def owner_payment_methods_statement():
-    if not require_owner():
-        return redirect(url_for("unified_login"))
-
-    today = date.today()
-    start = request.args.get("start") or today.replace(day=1).isoformat()
-    end = request.args.get("end") or today.isoformat()
-
+def compute_payment_statement(start, end):
     methods = PaymentMethod.query.filter_by(active=True).all()
     summary = {m.id: {"name": m.name, "in": 0.0, "out": 0.0} for m in methods}
     summary["none"] = {"name": "بدون طريقة محددة", "in": 0.0, "out": 0.0}
@@ -1227,6 +1221,67 @@ def owner_payment_methods_statement():
 
     transactions.sort(key=lambda t: t["date"], reverse=True)
     summary_rows = [v for k, v in summary.items() if v["in"] > 0 or v["out"] > 0]
+    return summary_rows, transactions
+
+
+@app.route("/owner/payment-methods/statement/export")
+@login_required
+def owner_payment_statement_export():
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    today = date.today()
+    start = request.args.get("start") or today.replace(day=1).isoformat()
+    end = request.args.get("end") or today.isoformat()
+    summary_rows, transactions = compute_payment_statement(start, end)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.sheet_view.rightToLeft = True
+    ws.title = "ملخص الطرق"
+
+    ws.append([f"كشف حركة طرق التحصيل — من {start} إلى {end}"])
+    ws["A1"].font = Font(bold=True, size=14)
+    ws.append([])
+    ws.append(["الطريقة", "تحصيل (داخل)", "صرف (خارج)", "الصافي"])
+    style_header_row(ws, ws.max_row, 4)
+    for row in summary_rows:
+        ws.append([row["name"], row["in"], row["out"], row["in"] - row["out"]])
+    for col, width in zip("ABCD", [22, 16, 16, 16]):
+        ws.column_dimensions[col].width = width
+
+    ws2 = wb.create_sheet("كل الحركات")
+    ws2.sheet_view.rightToLeft = True
+    ws2.append(["التاريخ", "النوع", "التفاصيل", "الطريقة", "المبلغ"])
+    style_header_row(ws2, 1, 5)
+    for t in transactions:
+        signed_amount = t["amount"] if t["direction"] == "in" else -t["amount"]
+        ws2.append([t["date"].strftime("%d/%m/%Y") if t["date"] else "", t["type"], t["detail"], t["method"], signed_amount])
+    for col, width in zip("ABCDE", [14, 22, 26, 18, 14]):
+        ws2.column_dimensions[col].width = width
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    return app.response_class(
+        buffer.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=كشف-حركة-{start}-الى-{end}.xlsx"},
+    )
+
+
+@app.route("/owner/payment-methods/statement")
+@login_required
+def owner_payment_methods_statement():
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    today = date.today()
+    start = request.args.get("start") or today.replace(day=1).isoformat()
+    end = request.args.get("end") or today.isoformat()
+
+    summary_rows, transactions = compute_payment_statement(start, end)
 
     return render_template(
         "owner_payment_statement.html", start=start, end=end,
@@ -1388,6 +1443,85 @@ def owner_reports():
         tuition_paid=tuition_paid, tuition_due=tuition_due,
         expenses_by_category=expenses_by_category, expenses_total=expenses_total,
         salaries_total=salaries_total, activities_cost=activities_cost, net=net,
+    )
+
+
+def style_header_row(ws, row_num, ncols):
+    for col in range(1, ncols + 1):
+        cell = ws.cell(row=row_num, column=col)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="2F5D50", end_color="2F5D50", fill_type="solid")
+        cell.alignment = Alignment(horizontal="right")
+
+
+@app.route("/owner/reports/export")
+@login_required
+def owner_reports_export():
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    month = int(request.args.get("month", date.today().month))
+    year = int(request.args.get("year", date.today().year))
+
+    tuition_paid = db.session.query(db.func.coalesce(db.func.sum(Payment.amount), 0)).filter(
+        Payment.month == month, Payment.year == year, Payment.paid.is_(True)
+    ).scalar()
+    tuition_due = db.session.query(db.func.coalesce(db.func.sum(Payment.amount), 0)).filter(
+        Payment.month == month, Payment.year == year, Payment.paid.is_(False)
+    ).scalar()
+    expenses = Expense.query.filter(
+        db.extract("month", Expense.date) == month, db.extract("year", Expense.date) == year
+    ).all()
+    expenses_by_category = {}
+    for e in expenses:
+        expenses_by_category[e.category] = expenses_by_category.get(e.category, 0) + float(e.amount)
+    salaries_total = float(db.session.query(db.func.coalesce(db.func.sum(SalaryPayment.amount), 0)).filter(
+        SalaryPayment.month == month, SalaryPayment.year == year, SalaryPayment.paid.is_(True)
+    ).scalar())
+    activities = Activity.query.filter(
+        db.extract("month", Activity.date) == month, db.extract("year", Activity.date) == year
+    ).all()
+    activities_cost = sum(float(a.cost) for a in activities)
+    expenses_total = sum(expenses_by_category.values())
+    net = float(tuition_paid) - expenses_total - salaries_total - activities_cost
+
+    wb = Workbook()
+    ws = wb.active
+    ws.sheet_view.rightToLeft = True
+    ws.title = f"تقرير {month}-{year}"
+
+    ws.append([f"التقرير المالي — {month}/{year}"])
+    ws["A1"].font = Font(bold=True, size=14)
+    ws.append([])
+
+    ws.append(["البند", "المبلغ (جنيه)"])
+    style_header_row(ws, ws.max_row, 2)
+    ws.append(["مصروفات دراسية محصّلة", float(tuition_paid)])
+    ws.append(["مصروفات دراسية مستحقة", float(tuition_due)])
+    ws.append([])
+    ws.append(["المصروفات حسب النوع", ""])
+    style_header_row(ws, ws.max_row, 2)
+    for cat, amount in expenses_by_category.items():
+        ws.append([cat, amount])
+    ws.append(["إجمالي المصروفات العامة", expenses_total])
+    ws.append(["مرتبات مدفوعة", salaries_total])
+    ws.append(["تكلفة الأنشطة", activities_cost])
+    ws.append([])
+    ws.append(["صافي الربح", net])
+    ws.cell(row=ws.max_row, column=1).font = Font(bold=True)
+    ws.cell(row=ws.max_row, column=2).font = Font(bold=True)
+
+    ws.column_dimensions["A"].width = 32
+    ws.column_dimensions["B"].width = 18
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    return app.response_class(
+        buffer.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=تقرير-{month}-{year}.xlsx"},
     )
 
 

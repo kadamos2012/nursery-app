@@ -9,6 +9,7 @@
     <input type="date" name="end" value="{{ end }}">
     <button type="submit" class="primary" style="width: auto; padding: 11px 16px;">عرض</button>
   </form>
+  <a class="row-link" href="{{ url_for('owner_payment_statement_export', start=start, end=end) }}" style="display:block; margin-top: 10px;">⬇ تحميل الكشف Excel</a>
 </div>
 
 <div class="card">

@@ -2,7 +2,9 @@
 {% block header_title %}التقرير المالي — {{ month }}/{{ year }}{% endblock %}
 {% set active = "reports" %}
 {% block content %}
-<div class="card">
+<a class="row-link" href="{{ url_for('owner_reports_export', month=month, year=year) }}">⬇ تحميل التقرير Excel</a>
+
+<div class="card" style="margin-top: 14px;">
   <h2>اختاري الشهر</h2>
   <form class="inline" method="GET" style="flex-direction: row; gap: 8px;">
     <select name="month">
