@@ -317,17 +317,43 @@ def push_unsubscribe():
 # Teacher-facing quick-entry pages (server-rendered, built for speed on a phone)
 # ---------------------------------------------------------------------------
 
-@app.route("/teacher/login", methods=["GET", "POST"])
-def teacher_login():
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://nursery-app-frontend-i3jq.onrender.com")
+
+
+@app.route("/")
+def index():
+    return redirect(url_for("unified_login"))
+
+
+@app.route("/login", methods=["GET", "POST"])
+def unified_login():
     if request.method == "POST":
         phone = request.form.get("phone", "").strip()
         password = request.form.get("password", "")
+
+        owner = Owner.query.filter_by(phone=phone).first()
+        if owner and owner.check_password(password):
+            login_user(owner)
+            return redirect(url_for("owner_dashboard"))
+
         teacher = Teacher.query.filter_by(phone=phone).first()
         if teacher and teacher.check_password(password):
             login_user(teacher)
             return redirect(url_for("teacher_dashboard"))
-        return render_template("teacher_login.html", error="رقم الهاتف أو كلمة المرور غير صحيحة")
-    return render_template("teacher_login.html", error=None)
+
+        parent = Parent.query.filter_by(phone=phone).first()
+        if parent and parent.check_password(password):
+            login_user(parent)
+            return redirect(FRONTEND_URL)
+
+        return render_template("login.html", error="رقم الهاتف أو كلمة المرور غير صحيحة")
+
+    return render_template("login.html", error=None)
+
+
+@app.route("/teacher/login", methods=["GET", "POST"])
+def teacher_login():
+    return redirect(url_for("unified_login"))
 
 
 @app.route("/teacher")
@@ -383,15 +409,7 @@ def require_owner():
 
 @app.route("/owner/login", methods=["GET", "POST"])
 def owner_login():
-    if request.method == "POST":
-        phone = request.form.get("phone", "").strip()
-        password = request.form.get("password", "")
-        owner = Owner.query.filter_by(phone=phone).first()
-        if owner and owner.check_password(password):
-            login_user(owner)
-            return redirect(url_for("owner_dashboard"))
-        return render_template("owner_login.html", error="رقم الهاتف أو كلمة المرور غير صحيحة")
-    return render_template("owner_login.html", error=None)
+    return redirect(url_for("unified_login"))
 
 
 @app.route("/owner")
