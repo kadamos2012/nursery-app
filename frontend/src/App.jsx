@@ -332,15 +332,53 @@ function DayPathCard({ today }) {
   );
 }
 
-function HomeTab({ apiFetch, childId, notifications }) {
+function MedicalAlertBanner({ notes }) {
+  if (!notes) return null;
+  return (
+    <div style={{
+      display: "flex", alignItems: "flex-start", gap: 8, background: C.coralSoft, color: "#B23A22",
+      padding: "12px 14px", borderRadius: 14, fontFamily: bodyFont, fontSize: 13, fontWeight: 700,
+    }}>
+      <span style={{ fontSize: 16 }}>⚠️</span>
+      <span>بيانات طبية مسجلة: {notes}</span>
+    </div>
+  );
+}
+
+function PaymentReminderBanner({ status }) {
+  if (!status || status.paid) return null;
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+      background: C.honeySoft, padding: "12px 14px", borderRadius: 14,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <Clock size={16} color="#946515" />
+        <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: "#946515", fontWeight: 700 }}>
+          مصروفات شهر {status.month}/{status.year} لسه متسددتش
+        </span>
+      </div>
+      <span style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 14, color: "#946515" }}>
+        {Math.round(parseFloat(status.amount))} ج
+      </span>
+    </div>
+  );
+}
+
+function HomeTab({ apiFetch, childId, notifications, medicalNotes }) {
   const [today, setToday] = useState(null);
+  const [paymentStatus, setPaymentStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!childId) return;
     setLoading(true);
-    apiFetch(`/api/child/${childId}/today`).then(setToday).catch((e) => setError(e.message)).finally(() => setLoading(false));
+    Promise.all([
+      apiFetch(`/api/child/${childId}/today`),
+      apiFetch(`/api/child/${childId}/payment-status`).catch(() => null),
+    ]).then(([t, p]) => { setToday(t); setPaymentStatus(p); })
+      .catch((e) => setError(e.message)).finally(() => setLoading(false));
   }, [childId, apiFetch]);
 
   if (loading) return <Spinner label="بنجيب تحديث النهاردة..." />;
@@ -348,6 +386,8 @@ function HomeTab({ apiFetch, childId, notifications }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 14, padding: "16px 14px 90px" }}>
       <NotificationBanner notifications={notifications} />
       {error && <ErrorNote message={error} />}
+      <MedicalAlertBanner notes={medicalNotes} />
+      <PaymentReminderBanner status={paymentStatus} />
       <DayPathCard today={today} />
     </div>
   );
@@ -569,16 +609,24 @@ export default function App() {
         <>
           <div style={{ background: C.primary, color: "white", padding: "18px 16px 22px", borderBottomLeftRadius: 22, borderBottomRightRadius: 22 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <button
-                onClick={() => children.length > 1 && setShowChildSwitcher(true)}
-                style={{ background: "none", border: "none", textAlign: "right", padding: 0, cursor: children.length > 1 ? "pointer" : "default" }}
-              >
-                <div style={{ fontFamily: bodyFont, fontSize: 12, opacity: 0.8, display: "flex", alignItems: "center", gap: 4 }}>
-                  {activeChild ? activeChild.class_name : "..."}
-                  {children.length > 1 && <span style={{ fontSize: 10 }}>▾</span>}
-                </div>
-                <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 20, marginTop: 2, color: "white" }}>{activeChild ? activeChild.name : "بنجيب بيانات طفلك"}</div>
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                {activeChild?.photo_url ? (
+                  <img src={activeChild.photo_url} alt={activeChild.name}
+                       style={{ width: 40, height: 40, borderRadius: "50%", objectFit: "cover", border: "2px solid rgba(255,255,255,0.4)" }} />
+                ) : (
+                  <Avatar size={40} letter={activeChild?.name?.[0] || "؟"} />
+                )}
+                <button
+                  onClick={() => children.length > 1 && setShowChildSwitcher(true)}
+                  style={{ background: "none", border: "none", textAlign: "right", padding: 0, cursor: children.length > 1 ? "pointer" : "default" }}
+                >
+                  <div style={{ fontFamily: bodyFont, fontSize: 12, opacity: 0.8, display: "flex", alignItems: "center", gap: 4 }}>
+                    {activeChild ? activeChild.class_name : "..."}
+                    {children.length > 1 && <span style={{ fontSize: 10 }}>▾</span>}
+                  </div>
+                  <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 20, marginTop: 2, color: "white" }}>{activeChild ? activeChild.name : "بنجيب بيانات طفلك"}</div>
+                </button>
+              </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <button onClick={() => setShowSettings(true)} style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Settings size={15} color="white" />
@@ -595,7 +643,7 @@ export default function App() {
               <Spinner label="بنجيب بيانات طفلك..." />
             ) : (
               <>
-                {tab === "home" && <HomeTab apiFetch={apiFetch} childId={childId} notifications={notifications} />}
+                {tab === "home" && <HomeTab apiFetch={apiFetch} childId={childId} notifications={notifications} medicalNotes={activeChild?.medical_notes} />}
                 {tab === "logs" && <LogsTab apiFetch={apiFetch} childId={childId} />}
                 {tab === "attendance" && <AttendanceTab apiFetch={apiFetch} childId={childId} />}
                 {tab === "messages" && <MessagesTab apiFetch={apiFetch} childId={childId} />}

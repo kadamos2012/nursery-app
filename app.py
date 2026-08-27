@@ -171,7 +171,8 @@ def parent_children():
             "id": c.id,
             "name": c.name,
             "class_name": c.school_class.name,
-            "photo_url": c.photo_url,
+            "photo_url": url_for("child_photo", child_id=c.id, _external=True) if c.photo_data else None,
+            "medical_notes": c.medical_notes,
         })
     return jsonify(children)
 
@@ -253,6 +254,26 @@ def child_payments(child_id):
         "month": p.month, "year": p.year, "amount": str(p.amount),
         "paid": p.paid, "paid_date": p.paid_date.isoformat() if p.paid_date else None,
     } for p in payments])
+
+
+@app.route("/api/child/<int:child_id>/payment-status")
+@login_required
+def child_payment_status(child_id):
+    if current_role() == "parent" and not child_belongs_to_parent(child_id, current_user.id):
+        return jsonify({"error": "غير مصرح"}), 403
+
+    child = Child.query.get_or_404(child_id)
+    today = date.today()
+    payment = Payment.query.filter_by(child_id=child_id, month=today.month, year=today.year).first()
+
+    if payment:
+        return jsonify({
+            "month": today.month, "year": today.year,
+            "amount": str(payment.amount), "paid": payment.paid,
+        })
+
+    expected = compute_child_expected_fee(child)
+    return jsonify({"month": today.month, "year": today.year, "amount": str(expected), "paid": False})
 
 
 @app.route("/api/child/<int:child_id>/messages", methods=["GET", "POST"])
