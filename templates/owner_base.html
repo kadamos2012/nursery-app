@@ -1,15 +1,16 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="{{ lang }}" dir="{{ dir }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}لوحة المالكة{% endblock %}</title>
+  <title>{% block title %}{{ t('nav_overview') }}{% endblock %}</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@700;800&family=Tajawal:wght@400;500;700&display=swap');
     * { box-sizing: border-box; }
     body { font-family: 'Tajawal', sans-serif; background: #F4F7F1; margin: 0; padding-bottom: 40px; color: #1F2A22; }
     header { background: #2F5D50; color: white; padding: 16px; }
-    header h1 { font-family: 'Cairo', sans-serif; font-size: 17px; margin: 0 0 12px; }
+    header h1 { font-family: 'Cairo', sans-serif; font-size: 17px; margin: 0 0 12px; display: flex; justify-content: space-between; align-items: center; }
+    .lang-btn { font-size: 11px; font-weight: 400; background: rgba(255,255,255,0.15); padding: 5px 10px; border-radius: 20px; text-decoration: none; color: white; }
     nav { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
     nav a {
       color: white; text-decoration: none; font-size: 12.5px; padding: 7px 12px; border-radius: 20px;
@@ -20,7 +21,7 @@
     .card { background: white; border-radius: 16px; padding: 16px; box-shadow: 0 2px 10px rgba(47,93,80,0.06); margin-bottom: 14px; }
     .card h2 { font-size: 14px; margin: 0 0 12px; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td { text-align: right; padding: 9px 6px; border-bottom: 1px solid #E4E9E1; }
+    th, td { text-align: {{ 'right' if dir == 'rtl' else 'left' }}; padding: 9px 6px; border-bottom: 1px solid #E4E9E1; }
     th { color: #5B6B5E; font-weight: 700; font-size: 12px; }
     .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
     .stat { background: #DCEAE3; border-radius: 14px; padding: 12px; }
@@ -45,29 +46,32 @@
 </head>
 <body>
   <header>
-    <h1>{% block header_title %}لوحة المالكة{% endblock %}</h1>
+    <h1>
+      <span>{% block header_title %}{{ t('nav_overview') }}{% endblock %}</span>
+      <a class="lang-btn" href="{{ url_for('set_language', lang_code='en' if lang == 'ar' else 'ar') }}">{{ t('language_switch') }}</a>
+    </h1>
     <nav>
-      <a href="{{ url_for('owner_dashboard') }}" class="{{ 'active' if active == 'dashboard' }}">نظرة عامة</a>
-      <a href="{{ url_for('owner_classes') }}" class="{{ 'active' if active == 'classes' }}">الفصول والطلبة</a>
-      <a href="{{ url_for('owner_parents') }}" class="{{ 'active' if active == 'parents' }}">أولياء الأمور</a>
-      <a href="{{ url_for('owner_birthdays') }}" class="{{ 'active' if active == 'birthdays' }}">أعياد الميلاد</a>
-      <a href="{{ url_for('owner_special_requests') }}" class="{{ 'active' if active == 'special_requests' }}">الطلبات الخاصة</a>
-      <a href="{{ url_for('owner_announcements') }}" class="{{ 'active' if active == 'announcements' }}">الإعلانات</a>
-      <a href="{{ url_for('owner_trips') }}" class="{{ 'active' if active == 'trips' }}">الرحلات</a>
-      <a href="{{ url_for('owner_settings') }}" class="{{ 'active' if active == 'settings' }}">الإعدادات</a>
-      <a href="{{ url_for('owner_addons') }}" class="{{ 'active' if active == 'addons' }}">الاشتراكات الإضافية</a>
-      <a href="{{ url_for('owner_tuition') }}" class="{{ 'active' if active == 'tuition' }}">تحصيل المصروفات</a>
-      <a href="{{ url_for('owner_dues') }}" class="{{ 'active' if active == 'dues' }}">المتأخرين</a>
-      <a href="{{ url_for('owner_attendance_report') }}" class="{{ 'active' if active == 'attendance_report' }}">تقرير الحضور</a>
-      <a href="{{ url_for('owner_enrollment_requests') }}" class="{{ 'active' if active == 'enrollment' }}">طلبات الالتحاق</a>
-      <a href="{{ url_for('owner_payment_methods') }}" class="{{ 'active' if active == 'methods' }}">طرق التحصيل والصرف</a>
-      <a href="{{ url_for('owner_activities') }}" class="{{ 'active' if active == 'activities' }}">الأنشطة</a>
-      <a href="{{ url_for('owner_staff') }}" class="{{ 'active' if active == 'staff' }}">الموظفين</a>
-      <a href="{{ url_for('owner_teachers') }}" class="{{ 'active' if active == 'teachers' }}">حسابات المعلمات</a>
-      <a href="{{ url_for('owner_tasks') }}" class="{{ 'active' if active == 'tasks' }}">مهام المعلمات</a>
-      <a href="{{ url_for('owner_credentials_overview') }}" class="{{ 'active' if active == 'credentials' }}">صلاحيات الموظفين</a>
-      <a href="{{ url_for('owner_expenses') }}" class="{{ 'active' if active == 'expenses' }}">المصروفات</a>
-      <a href="{{ url_for('owner_reports') }}" class="{{ 'active' if active == 'reports' }}">التقارير</a>
+      <a href="{{ url_for('owner_dashboard') }}" class="{{ 'active' if active == 'dashboard' }}">{{ t('nav_overview') }}</a>
+      <a href="{{ url_for('owner_classes') }}" class="{{ 'active' if active == 'classes' }}">{{ t('nav_classes') }}</a>
+      <a href="{{ url_for('owner_parents') }}" class="{{ 'active' if active == 'parents' }}">{{ t('nav_parents') }}</a>
+      <a href="{{ url_for('owner_birthdays') }}" class="{{ 'active' if active == 'birthdays' }}">{{ t('nav_birthdays') }}</a>
+      <a href="{{ url_for('owner_special_requests') }}" class="{{ 'active' if active == 'special_requests' }}">{{ t('nav_special_requests') }}</a>
+      <a href="{{ url_for('owner_announcements') }}" class="{{ 'active' if active == 'announcements' }}">{{ t('nav_announcements') }}</a>
+      <a href="{{ url_for('owner_trips') }}" class="{{ 'active' if active == 'trips' }}">{{ t('nav_trips') }}</a>
+      <a href="{{ url_for('owner_settings') }}" class="{{ 'active' if active == 'settings' }}">{{ t('nav_settings') }}</a>
+      <a href="{{ url_for('owner_addons') }}" class="{{ 'active' if active == 'addons' }}">{{ t('nav_addons') }}</a>
+      <a href="{{ url_for('owner_tuition') }}" class="{{ 'active' if active == 'tuition' }}">{{ t('nav_tuition') }}</a>
+      <a href="{{ url_for('owner_dues') }}" class="{{ 'active' if active == 'dues' }}">{{ t('nav_dues') }}</a>
+      <a href="{{ url_for('owner_attendance_report') }}" class="{{ 'active' if active == 'attendance_report' }}">{{ t('nav_attendance_report') }}</a>
+      <a href="{{ url_for('owner_enrollment_requests') }}" class="{{ 'active' if active == 'enrollment' }}">{{ t('nav_enrollment') }}</a>
+      <a href="{{ url_for('owner_payment_methods') }}" class="{{ 'active' if active == 'methods' }}">{{ t('nav_methods') }}</a>
+      <a href="{{ url_for('owner_activities') }}" class="{{ 'active' if active == 'activities' }}">{{ t('nav_activities') }}</a>
+      <a href="{{ url_for('owner_staff') }}" class="{{ 'active' if active == 'staff' }}">{{ t('nav_staff') }}</a>
+      <a href="{{ url_for('owner_teachers') }}" class="{{ 'active' if active == 'teachers' }}">{{ t('nav_teachers') }}</a>
+      <a href="{{ url_for('owner_tasks') }}" class="{{ 'active' if active == 'tasks' }}">{{ t('nav_tasks') }}</a>
+      <a href="{{ url_for('owner_credentials_overview') }}" class="{{ 'active' if active == 'credentials' }}">{{ t('nav_credentials') }}</a>
+      <a href="{{ url_for('owner_expenses') }}" class="{{ 'active' if active == 'expenses' }}">{{ t('nav_expenses') }}</a>
+      <a href="{{ url_for('owner_reports') }}" class="{{ 'active' if active == 'reports' }}">{{ t('nav_reports') }}</a>
     </nav>
   </header>
   <main>

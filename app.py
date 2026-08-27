@@ -48,6 +48,127 @@ app.config["SESSION_COOKIE_SECURE"] = True
 db.init_app(app)
 
 # ---------------------------------------------------------------------------
+# Language / i18n
+# ---------------------------------------------------------------------------
+TRANSLATIONS = {
+    "ar": {
+        "app_name": "Kinder Care",
+        "login_title": "سجّلي دخولك — هنوديكي تلقائياً لقسمك",
+        "phone": "رقم الهاتف",
+        "password": "كلمة المرور",
+        "login_button": "دخول",
+        "nav_overview": "نظرة عامة",
+        "nav_classes": "الفصول والطلبة",
+        "nav_parents": "أولياء الأمور",
+        "nav_addons": "الاشتراكات الإضافية",
+        "nav_tuition": "تحصيل المصروفات",
+        "nav_dues": "المتأخرين",
+        "nav_attendance_report": "تقرير الحضور",
+        "nav_enrollment": "طلبات الالتحاق",
+        "nav_activities": "الأنشطة",
+        "nav_staff": "الموظفين",
+        "nav_teachers": "حسابات المعلمات",
+        "nav_tasks": "مهام المعلمات",
+        "nav_credentials": "صلاحيات الموظفين",
+        "nav_expenses": "المصروفات",
+        "nav_methods": "طرق التحصيل والصرف",
+        "nav_reports": "التقارير",
+        "nav_birthdays": "أعياد الميلاد",
+        "nav_special_requests": "الطلبات الخاصة",
+        "nav_announcements": "الإعلانات",
+        "nav_trips": "الرحلات",
+        "nav_settings": "الإعدادات",
+        "nav_logout": "خروج",
+        "save": "حفظ", "add": "إضافة", "delete": "حذف", "edit": "تعديل", "cancel": "إلغاء",
+        "back": "رجوع", "name": "الاسم", "class_label": "الفصل", "status": "الحالة",
+        "date": "التاريخ", "amount": "المبلغ", "actions": "إجراءات",
+        "teacher_dashboard_title": "لوحة المعلمة",
+        "students_count": "أطفال",
+        "no_classes_assigned": "مفيش فصول متعينة لسه",
+        "birthdays_this_month": "🎂 أعياد الميلاد الشهر ده",
+        "class_photos": "📸 صور الفصل",
+        "today_tasks": "✅ مهام اليوم",
+        "my_timeclock": "🕐 بصمة حضوري",
+        "parent_request_tooltip": "فيه طلب من ولي الأمر",
+        "last_update": "آخر تحديث",
+        "not_updated_yet": "لسه معملتش تحديث النهارده",
+        "updated": "تم التحديث",
+        "needs_update": "محتاج تحديث",
+        "logo_alt": "اللوجو",
+        "language_switch": "English",
+    },
+    "en": {
+        "app_name": "Kinder Care",
+        "login_title": "Sign in — we'll take you straight to your section",
+        "phone": "Phone number",
+        "password": "Password",
+        "login_button": "Log in",
+        "nav_overview": "Overview",
+        "nav_classes": "Classes & Students",
+        "nav_parents": "Parents",
+        "nav_addons": "Add-on Subscriptions",
+        "nav_tuition": "Collect Tuition",
+        "nav_dues": "Overdue",
+        "nav_attendance_report": "Attendance Report",
+        "nav_enrollment": "Enrollment Requests",
+        "nav_activities": "Activities",
+        "nav_staff": "Staff",
+        "nav_teachers": "Teacher Accounts",
+        "nav_tasks": "Teacher Tasks",
+        "nav_credentials": "Staff Credentials",
+        "nav_expenses": "Expenses",
+        "nav_methods": "Payment Methods",
+        "nav_reports": "Reports",
+        "nav_birthdays": "Birthdays",
+        "nav_special_requests": "Special Requests",
+        "nav_announcements": "Announcements",
+        "nav_trips": "Trips",
+        "nav_settings": "Settings",
+        "nav_logout": "Log out",
+        "save": "Save", "add": "Add", "delete": "Delete", "edit": "Edit", "cancel": "Cancel",
+        "back": "Back", "name": "Name", "class_label": "Class", "status": "Status",
+        "date": "Date", "amount": "Amount", "actions": "Actions",
+        "teacher_dashboard_title": "Teacher Dashboard",
+        "students_count": "children",
+        "no_classes_assigned": "No classes assigned yet",
+        "birthdays_this_month": "🎂 Birthdays this month",
+        "class_photos": "📸 Class photos",
+        "today_tasks": "✅ Today's tasks",
+        "my_timeclock": "🕐 My time clock",
+        "parent_request_tooltip": "There's a request from a parent",
+        "last_update": "Last update",
+        "not_updated_yet": "No update logged yet today",
+        "updated": "Updated",
+        "needs_update": "Needs update",
+        "logo_alt": "Logo",
+        "language_switch": "العربية",
+    },
+}
+
+
+def get_lang():
+    return session.get("lang", "ar")
+
+
+def t(key):
+    lang = get_lang()
+    return TRANSLATIONS.get(lang, TRANSLATIONS["ar"]).get(key, key)
+
+
+@app.context_processor
+def inject_i18n():
+    lang = get_lang()
+    return {"t": t, "lang": lang, "dir": "ltr" if lang == "en" else "rtl"}
+
+
+@app.route("/set-language/<lang_code>")
+def set_language(lang_code):
+    if lang_code in TRANSLATIONS:
+        session["lang"] = lang_code
+        session.permanent = True
+    return redirect(request.referrer or url_for("unified_login"))
+
+# ---------------------------------------------------------------------------
 # Telegram bot (free alternative notification channel)
 # ---------------------------------------------------------------------------
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
@@ -1175,6 +1296,20 @@ def nursery_logo():
         return "", 404
     raw = base64.b64decode(nursery.logo_data)
     return app.response_class(raw, mimetype=nursery.logo_mime or "image/png")
+
+
+@app.route("/api/language")
+def api_get_language():
+    return jsonify({"lang": get_lang()})
+
+
+@app.route("/api/language/<lang_code>", methods=["POST"])
+def api_set_language(lang_code):
+    if lang_code in TRANSLATIONS:
+        session["lang"] = lang_code
+        session.permanent = True
+        return jsonify({"ok": True, "lang": lang_code})
+    return jsonify({"ok": False}), 400
 
 
 @app.route("/api/nursery/branding")

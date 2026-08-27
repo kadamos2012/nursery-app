@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, createContext, useContext } from "react";
 import {
   Home, BookOpen, CalendarCheck, MessageCircle, Sun, Moon, UtensilsCrossed,
   Smile, Clock, CreditCard, Send, CheckCircle2, Settings, LogOut,
@@ -13,10 +13,152 @@ const C = {
 const displayFont = "'Cairo', 'Tahoma', sans-serif";
 const bodyFont = "'Tajawal', 'Tahoma', sans-serif";
 
+// ---------------------------------------------------------------------------
+// i18n (Arabic / English)
+// ---------------------------------------------------------------------------
+const TRANSLATIONS = {
+  ar: {
+    server_error: "حصل خطأ في الاتصال بالسيرفر",
+    checking_login: t("checking_login"),
+    fetching_child_data: t("fetching_child_data"),
+    fetching_today_update: t("fetching_today_update"),
+    fetching_logs: t("fetching_logs"),
+    fetching_attendance: t("fetching_attendance"),
+    fetching_messages: t("fetching_messages"),
+    enable_notifications_prompt: "فعّلي الإشعارات عشان توصلك تحديثات طفلك أول بأول",
+    blocked_by_browser: "محظورة من المتصفح",
+    enable: "تفعيل",
+    disable: "إيقاف",
+    settings_title: "الإعدادات",
+    update_notifications: "إشعارات التحديثات",
+    telegram_notifications: "إشعارات تليجرام",
+    connected: "متصل ✅",
+    link_telegram: "ربط تليجرام",
+    not_available_now: "غير متاح حالياً",
+    language: "اللغة",
+    done: "تم",
+    my_children: "أطفالي",
+    close: "إغلاق",
+    welcome: "أهلاً بيكي",
+    login_subtitle: "سجلي دخولك لمتابعة طفلك",
+    phone_placeholder: "رقم الهاتف",
+    password_placeholder: "كلمة المرور",
+    logging_in: "جاري الدخول...",
+    login_button: "دخول",
+    fetching_child: "بنجيب بيانات طفلك",
+    today_update: "تحديث النهاردة",
+    no_update_yet: "لسه معملتش المعلمة تحديث النهاردة",
+    meal: "الأكل", nap: "القيلولة", mood: "المزاج", minutes: "دقيقة",
+    medical_alert: "بيانات طبية مسجلة",
+    payment_due: "مصروفات شهر {m}/{y} لسه متسددتش",
+    part_time_days: "أيام الدوام الجزئي هذا الشهر",
+    nursery_announcements: "إعلانات الحضانة",
+    available_trips: "الرحلات المتاحة",
+    subscribe_now: "اشتراك الآن",
+    subscribing: "جاري الاشتراك...",
+    confirmed_paid: "✅ الاشتراك مؤكد ومدفوع",
+    pending_payment: "⏳ تم تسجيل الاشتراك، في انتظار السداد",
+    class_photos: "صور الفصل",
+    growth_journey: "رحلة النمو",
+    today_tasks: "مهام النهاردة",
+    weekly_schedule: "جدول الأسبوع",
+    today_only: "النهاردة بس",
+    whole_week: "كل الأسبوع",
+    today_label: "(النهاردة)",
+    no_activity: "مفيش نشاط مسجل",
+    special_request_title: "طلب خاص للمعلمة",
+    new_request: "+ طلب جديد",
+    special_request_placeholder: "مثال: محتاج ياخد الدواء الساعة 12، أو حطيتله جاكيت النهاردة برد...",
+    send: "إرسال", sending: "جاري الإرسال...", cancel: "إلغاء",
+    arrived_status: "✅ وصلت",
+    pending_status: "⏳ في انتظار الاطلاع",
+    daily_log_empty: "هنا هيتجمع سجل يوميات طفلك يوم بيوم",
+    messages_empty: "ابدئي محادثة مع المعلمة من هنا",
+    type_message: "اكتبي رسالتك...",
+    nav_home: "الرئيسية", nav_logs: "اليوميات", nav_attendance: "الحضور", nav_messages: "رسائل",
+  },
+  en: {
+    server_error: "There was a problem connecting to the server",
+    checking_login: "Checking your login...",
+    fetching_child_data: "Fetching your child's data...",
+    fetching_today_update: "Fetching today's update...",
+    fetching_logs: "Fetching daily logs...",
+    fetching_attendance: "Fetching attendance & payments...",
+    fetching_messages: "Fetching messages...",
+    enable_notifications_prompt: "Turn on notifications to get your child's updates instantly",
+    blocked_by_browser: "Blocked by browser",
+    enable: "Enable",
+    disable: "Disable",
+    settings_title: "Settings",
+    update_notifications: "Update notifications",
+    telegram_notifications: "Telegram notifications",
+    connected: "Connected ✅",
+    link_telegram: "Link Telegram",
+    not_available_now: "Not available right now",
+    language: "Language",
+    done: "Done",
+    my_children: "My Children",
+    close: "Close",
+    welcome: "Welcome",
+    login_subtitle: "Sign in to follow your child's day",
+    phone_placeholder: "Phone number",
+    password_placeholder: "Password",
+    logging_in: "Logging in...",
+    login_button: "Log in",
+    fetching_child: "Fetching your child's data",
+    today_update: "Today's Update",
+    no_update_yet: "The teacher hasn't logged an update yet today",
+    meal: "Meal", nap: "Nap", mood: "Mood", minutes: "min",
+    medical_alert: "Medical note on file",
+    payment_due: "{m}/{y} tuition is still unpaid",
+    part_time_days: "Part-time days this month",
+    nursery_announcements: "Nursery Announcements",
+    available_trips: "Available Trips",
+    subscribe_now: "Subscribe Now",
+    subscribing: "Subscribing...",
+    confirmed_paid: "✅ Subscription confirmed & paid",
+    pending_payment: "⏳ Subscribed — payment pending",
+    class_photos: "Class Photos",
+    growth_journey: "Growth Journey",
+    today_tasks: "Today's Tasks",
+    weekly_schedule: "Weekly Schedule",
+    today_only: "Today only",
+    whole_week: "Whole week",
+    today_label: "(Today)",
+    no_activity: "No activity logged",
+    special_request_title: "Special Request to Teacher",
+    new_request: "+ New Request",
+    special_request_placeholder: "e.g. needs medication at 12, or I packed a jacket today for the cold...",
+    send: "Send", sending: "Sending...", cancel: "Cancel",
+    arrived_status: "✅ Received",
+    pending_status: "⏳ Awaiting review",
+    daily_log_empty: "Your child's day-by-day log will appear here",
+    messages_empty: "Start a conversation with the teacher here",
+    type_message: "Type your message...",
+    nav_home: "Home", nav_logs: "Logs", nav_attendance: "Attendance", nav_messages: "Messages",
+  },
+};
+
+const I18nContext = createContext({ lang: "ar", dir: "rtl", t: (k) => k, setLang: () => {} });
+function useLang() { return useContext(I18nContext); }
+
+function I18nProvider({ children }) {
+  const [lang, setLangState] = useState(() => localStorage.getItem("nursery_lang") || "ar");
+  const setLang = (l) => { setLangState(l); localStorage.setItem("nursery_lang", l); };
+  const t = useCallback((key, vars) => {
+    let str = TRANSLATIONS[lang]?.[key] ?? TRANSLATIONS.ar[key] ?? key;
+    if (vars) Object.entries(vars).forEach(([k, v]) => { str = str.replace(`{${k}}`, v); });
+    return str;
+  }, [lang]);
+  const dir = lang === "en" ? "ltr" : "rtl";
+  return <I18nContext.Provider value={{ lang, dir, t, setLang }}>{children}</I18nContext.Provider>;
+}
+
 // The backend URL. In production this points at the deployed Flask API.
 const API_BASE = import.meta.env.VITE_API_BASE || "https://nursery-app-f5of.onrender.com";
 
 function useApi() {
+  const { t } = useLang();
   return useCallback(async (path, options = {}) => {
     const res = await fetch(API_BASE + path, {
       credentials: "include",
@@ -24,12 +166,12 @@ function useApi() {
       ...options,
     });
     if (!res.ok) {
-      let msg = "حصل خطأ في الاتصال بالسيرفر";
+      let msg = t("server_error");
       try { msg = (await res.json()).error || msg; } catch (_) {}
       throw new Error(msg);
     }
     return res.json();
-  }, []);
+  }, [t]);
 }
 
 function urlBase64ToUint8Array(base64String) {
@@ -142,6 +284,7 @@ function useNotifications(apiFetch) {
 }
 
 function NotificationBanner({ notifications }) {
+  const { t } = useLang();
   if (notifications.status === "on" || notifications.status === "unsupported") return null;
   return (
     <div style={{
@@ -151,7 +294,7 @@ function NotificationBanner({ notifications }) {
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <Bell size={16} color="#946515" />
         <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.ink }}>
-          فعّلي الإشعارات عشان توصلك تحديثات طفلك أول بأول
+          {t("enable_notifications_prompt")}
         </span>
       </div>
       <button
@@ -162,7 +305,7 @@ function NotificationBanner({ notifications }) {
           fontFamily: bodyFont, fontSize: 11.5, fontWeight: 700, whiteSpace: "nowrap", opacity: notifications.status === "denied" ? 0.5 : 1,
         }}
       >
-        {notifications.status === "denied" ? "محظورة من المتصفح" : notifications.busy ? "..." : "تفعيل"}
+        {notifications.status === "denied" ? t("blocked_by_browser") : notifications.busy ? "..." : t("enable")}
       </button>
     </div>
   );
@@ -172,6 +315,7 @@ function NotificationBanner({ notifications }) {
 // Settings sheet
 // ---------------------------------------------------------------------------
 function SettingsSheet({ onClose, notifications, apiFetch }) {
+  const { t, lang, setLang, dir } = useLang();
   const [telegram, setTelegram] = useState(null);
 
   useEffect(() => {
@@ -180,21 +324,21 @@ function SettingsSheet({ onClose, notifications, apiFetch }) {
 
   return (
     <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 20, display: "flex", alignItems: "flex-end" }}>
-      <div style={{ background: "white", width: "100%", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20 }} dir="rtl">
-        <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 15, color: C.ink, marginBottom: 14 }}>الإعدادات</div>
+      <div style={{ background: "white", width: "100%", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20 }} dir={dir}>
+        <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 15, color: C.ink, marginBottom: 14 }}>{t("settings_title")}</div>
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${C.line}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {notifications.status === "on" ? <Bell size={16} color={C.primary} /> : <BellOff size={16} color={C.inkSoft} />}
-            <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.ink }}>إشعارات التحديثات</span>
+            <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.ink }}>{t("update_notifications")}</span>
           </div>
           {notifications.status === "on" ? (
             <button onClick={notifications.disable} style={{ background: "none", border: `1px solid ${C.line}`, borderRadius: 10, padding: "6px 12px", fontFamily: bodyFont, fontSize: 12, color: C.inkSoft }}>
-              إيقاف
+              {t("disable")}
             </button>
           ) : (
             <button onClick={notifications.enable} disabled={notifications.status === "denied"} style={{ background: C.primary, color: "white", border: "none", borderRadius: 10, padding: "6px 12px", fontFamily: bodyFont, fontSize: 12, fontWeight: 700, opacity: notifications.status === "denied" ? 0.5 : 1 }}>
-              {notifications.status === "denied" ? "محظورة" : "تفعيل"}
+              {notifications.status === "denied" ? t("blocked_by_browser") : t("enable")}
             </button>
           )}
         </div>
@@ -202,21 +346,33 @@ function SettingsSheet({ onClose, notifications, apiFetch }) {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${C.line}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Send size={16} color={telegram?.linked ? C.primary : C.inkSoft} />
-            <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.ink }}>إشعارات تليجرام</span>
+            <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.ink }}>{t("telegram_notifications")}</span>
           </div>
           {telegram?.linked ? (
-            <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.primary, fontWeight: 700 }}>متصل ✅</span>
+            <span style={{ fontFamily: bodyFont, fontSize: 12, color: C.primary, fontWeight: 700 }}>{t("connected")}</span>
           ) : telegram?.link ? (
             <a href={telegram.link} target="_blank" rel="noreferrer" style={{ background: C.primary, color: "white", borderRadius: 10, padding: "6px 12px", fontFamily: bodyFont, fontSize: 12, fontWeight: 700, textDecoration: "none" }}>
-              ربط تليجرام
+              {t("link_telegram")}
             </a>
           ) : (
-            <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.inkSoft }}>غير متاح حالياً</span>
+            <span style={{ fontFamily: bodyFont, fontSize: 11, color: C.inkSoft }}>{t("not_available_now")}</span>
           )}
         </div>
 
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0" }}>
+          <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.ink }}>{t("language")}</span>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={() => setLang("ar")} style={{ background: lang === "ar" ? C.primary : "none", color: lang === "ar" ? "white" : C.inkSoft, border: `1px solid ${C.line}`, borderRadius: 10, padding: "6px 12px", fontFamily: bodyFont, fontSize: 12, fontWeight: 700 }}>
+              العربية
+            </button>
+            <button onClick={() => setLang("en")} style={{ background: lang === "en" ? C.primary : "none", color: lang === "en" ? "white" : C.inkSoft, border: `1px solid ${C.line}`, borderRadius: 10, padding: "6px 12px", fontFamily: bodyFont, fontSize: 12, fontWeight: 700 }}>
+              English
+            </button>
+          </div>
+        </div>
+
         <button onClick={onClose} style={{ width: "100%", padding: 13, background: C.primary, color: "white", border: "none", borderRadius: 12, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, marginTop: 18 }}>
-          تم
+          {t("done")}
         </button>
       </div>
     </div>
@@ -227,10 +383,11 @@ function SettingsSheet({ onClose, notifications, apiFetch }) {
 // Child switcher (for a parent linked to more than one child)
 // ---------------------------------------------------------------------------
 function ChildSwitcherSheet({ children, activeChildId, onSelect, onClose }) {
+  const { t, dir } = useLang();
   return (
     <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 20, display: "flex", alignItems: "flex-end" }}>
-      <div style={{ background: "white", width: "100%", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20 }} dir="rtl">
-        <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 15, color: C.ink, marginBottom: 14 }}>أطفالي</div>
+      <div style={{ background: "white", width: "100%", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20 }} dir={dir}>
+        <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 15, color: C.ink, marginBottom: 14 }}>{t("my_children")}</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {children.map((c) => (
             <button
@@ -251,7 +408,7 @@ function ChildSwitcherSheet({ children, activeChildId, onSelect, onClose }) {
           ))}
         </div>
         <button onClick={onClose} style={{ width: "100%", padding: 13, background: "none", border: `1px solid ${C.line}`, borderRadius: 12, fontFamily: bodyFont, fontWeight: 700, fontSize: 14, marginTop: 16, color: C.inkSoft }}>
-          إغلاق
+          {t("close")}
         </button>
       </div>
     </div>
@@ -262,6 +419,7 @@ function ChildSwitcherSheet({ children, activeChildId, onSelect, onClose }) {
 // Login
 // ---------------------------------------------------------------------------
 function LoginScreen({ apiFetch, onLoggedIn }) {
+  const { t, dir, lang, setLang } = useLang();
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -290,7 +448,13 @@ function LoginScreen({ apiFetch, onLoggedIn }) {
   };
 
   return (
-    <div dir="rtl" style={{ display: "flex", flexDirection: "column", justifyContent: "center", flex: 1, padding: 24, background: C.bg }}>
+    <div dir={dir} style={{ display: "flex", flexDirection: "column", justifyContent: "center", flex: 1, padding: 24, background: C.bg, position: "relative" }}>
+      <button
+        onClick={() => setLang(lang === "ar" ? "en" : "ar")}
+        style={{ position: "absolute", top: 16, [dir === "rtl" ? "left" : "right"]: 16, background: C.card, border: `1px solid ${C.line}`, borderRadius: 20, padding: "5px 12px", fontFamily: bodyFont, fontSize: 11, color: C.inkSoft }}
+      >
+        {lang === "ar" ? "English" : "العربية"}
+      </button>
       <div style={{ textAlign: "center", marginBottom: 26 }}>
         {branding?.logo_url ? (
           <img src={branding.logo_url} alt={branding.name} style={{ width: 64, height: 64, borderRadius: 16, objectFit: "cover" }} />
@@ -298,21 +462,21 @@ function LoginScreen({ apiFetch, onLoggedIn }) {
           <Avatar size={56} letter="👋" />
         )}
         <div style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 19, color: C.ink, marginTop: 12 }}>
-          {branding?.name || "أهلاً بيكي"}
+          {branding?.name || t("welcome")}
         </div>
-        <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.inkSoft, marginTop: 4 }}>سجلي دخولك لمتابعة طفلك</div>
+        <div style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.inkSoft, marginTop: 4 }}>{t("login_subtitle")}</div>
       </div>
 
       {error && <ErrorNote message={error} />}
 
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <input
-          type="tel" placeholder="رقم الهاتف" value={phone} required
+          type="tel" placeholder={t("phone_placeholder")} value={phone} required
           onChange={(e) => setPhone(e.target.value)}
           style={{ padding: "13px 16px", borderRadius: 14, border: `1px solid ${C.line}`, fontFamily: bodyFont, fontSize: 14, background: "white" }}
         />
         <input
-          type="password" placeholder="كلمة المرور" value={password} required
+          type="password" placeholder={t("password_placeholder")} value={password} required
           onChange={(e) => setPassword(e.target.value)}
           style={{ padding: "13px 16px", borderRadius: 14, border: `1px solid ${C.line}`, fontFamily: bodyFont, fontSize: 14, background: "white" }}
         />
@@ -320,7 +484,7 @@ function LoginScreen({ apiFetch, onLoggedIn }) {
           padding: 14, background: C.primary, color: "white", border: "none", borderRadius: 14,
           fontFamily: bodyFont, fontWeight: 700, fontSize: 14.5, marginTop: 6, opacity: loading ? 0.7 : 1,
         }}>
-          {loading ? "جاري الدخول..." : "دخول"}
+          {loading ? t("logging_in") : t("login_button")}
         </button>
       </form>
 
@@ -345,18 +509,19 @@ function LoginScreen({ apiFetch, onLoggedIn }) {
 // Tabs
 // ---------------------------------------------------------------------------
 function DayPathCard({ today }) {
+  const { t } = useLang();
   if (!today || !today.exists) {
     return (
       <div style={{ background: C.card, borderRadius: 18, padding: 20, textAlign: "center" }}>
         <Sun size={22} color={C.honey} />
-        <p style={{ fontFamily: bodyFont, fontSize: 13, color: C.inkSoft, marginTop: 8 }}>لسه معملتش المعلمة تحديث النهاردة</p>
+        <p style={{ fontFamily: bodyFont, fontSize: 13, color: C.inkSoft, marginTop: 8 }}>{t("no_update_yet")}</p>
       </div>
     );
   }
   return (
     <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: "0 2px 10px rgba(47,93,80,0.06)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 15, color: C.ink }}>تحديث النهاردة</span>
+        <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 15, color: C.ink }}>{t("today_update")}</span>
         <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: C.inkSoft, fontFamily: bodyFont }}>
           <Sun size={14} color={C.honey} /> {today.date}
         </span>
@@ -364,19 +529,19 @@ function DayPathCard({ today }) {
       <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
         <div style={{ flex: 1, background: C.primarySoft, borderRadius: 14, padding: 12 }}>
           <UtensilsCrossed size={16} color={C.primary} />
-          <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.inkSoft, marginTop: 6 }}>الأكل</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.inkSoft, marginTop: 6 }}>{t("meal")}</div>
           <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 12.5, color: C.ink, marginTop: 2 }}>{today.meal_status || "—"}</div>
         </div>
         <div style={{ flex: 1, background: C.honeySoft, borderRadius: 14, padding: 12 }}>
           <Moon size={16} color={C.honey} />
-          <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.inkSoft, marginTop: 6 }}>القيلولة</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.inkSoft, marginTop: 6 }}>{t("nap")}</div>
           <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 12.5, color: C.ink, marginTop: 2 }}>
-            {today.nap_minutes ? `${today.nap_minutes} دقيقة` : "—"}
+            {today.nap_minutes ? `${today.nap_minutes} ${t("minutes")}` : "—"}
           </div>
         </div>
         <div style={{ flex: 1, background: C.coralSoft, borderRadius: 14, padding: 12 }}>
           <Smile size={16} color={C.coral} />
-          <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.inkSoft, marginTop: 6 }}>المزاج</div>
+          <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.inkSoft, marginTop: 6 }}>{t("mood")}</div>
           <div style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 16, marginTop: 2 }}>{today.mood || "—"}</div>
         </div>
       </div>
@@ -390,6 +555,7 @@ function DayPathCard({ today }) {
 }
 
 function MedicalAlertBanner({ notes }) {
+  const { t } = useLang();
   if (!notes) return null;
   return (
     <div style={{
@@ -397,12 +563,13 @@ function MedicalAlertBanner({ notes }) {
       padding: "12px 14px", borderRadius: 14, fontFamily: bodyFont, fontSize: 13, fontWeight: 700,
     }}>
       <span style={{ fontSize: 16 }}>⚠️</span>
-      <span>بيانات طبية مسجلة: {notes}</span>
+      <span>{t("medical_alert")}: {notes}</span>
     </div>
   );
 }
 
 function PaymentReminderBanner({ status }) {
+  const { t } = useLang();
   const partTime = status?.part_time;
   return (
     <>
@@ -414,11 +581,11 @@ function PaymentReminderBanner({ status }) {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Clock size={16} color="#946515" />
             <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: "#946515", fontWeight: 700 }}>
-              مصروفات شهر {status.month}/{status.year} لسه متسددتش
+              {t("payment_due", { m: status.month, y: status.year })}
             </span>
           </div>
           <span style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 14, color: "#946515" }}>
-            {Math.round(parseFloat(status.amount))} ج
+            {Math.round(parseFloat(status.amount))} {t("currency_short") || "ج"}
           </span>
         </div>
       )}
@@ -428,7 +595,7 @@ function PaymentReminderBanner({ status }) {
           background: partTime.used >= partTime.max ? C.coralSoft : C.primarySoft, padding: "10px 14px", borderRadius: 14,
         }}>
           <span style={{ fontFamily: bodyFont, fontSize: 12, color: partTime.used >= partTime.max ? "#B23A22" : C.primary, fontWeight: 700 }}>
-            أيام الدوام الجزئي هذا الشهر
+            {t("part_time_days")}
           </span>
           <span style={{ fontFamily: displayFont, fontWeight: 800, fontSize: 13, color: partTime.used >= partTime.max ? "#B23A22" : C.primary }}>
             {partTime.used} / {partTime.max}
@@ -440,12 +607,13 @@ function PaymentReminderBanner({ status }) {
 }
 
 function AnnouncementsCard({ announcements }) {
+  const { t } = useLang();
   if (!announcements || announcements.length === 0) return null;
   return (
     <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: "0 2px 10px rgba(47,93,80,0.06)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <Megaphone size={17} color={C.primary} />
-        <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: C.ink }}>إعلانات الحضانة</span>
+        <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: C.ink }}>{t("nursery_announcements")}</span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {announcements.map((a) => (
@@ -463,6 +631,7 @@ function AnnouncementsCard({ announcements }) {
 }
 
 function TripsCard({ apiFetch, childId }) {
+  const { t } = useLang();
   const [trips, setTrips] = useState([]);
   const [busy, setBusy] = useState(null);
 
@@ -488,29 +657,29 @@ function TripsCard({ apiFetch, childId }) {
     <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: "0 2px 10px rgba(47,93,80,0.06)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <MapPin size={17} color={C.primary} />
-        <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: C.ink }}>الرحلات المتاحة</span>
+        <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: C.ink }}>{t("available_trips")}</span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {trips.map((t) => (
-          <div key={t.id} style={{ background: C.bg, borderRadius: 12, padding: 12 }}>
+        {trips.map((trip) => (
+          <div key={trip.id} style={{ background: C.bg, borderRadius: 12, padding: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.ink }}>{t.title}</span>
-              <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 13, color: C.primary }}>{Math.round(parseFloat(t.price))} ج</span>
+              <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.ink }}>{trip.title}</span>
+              <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 13, color: C.primary }}>{Math.round(parseFloat(trip.price))} ج</span>
             </div>
-            {t.date && <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.inkSoft, marginTop: 2 }}>📅 {t.date}</div>}
-            {t.description && <p style={{ fontFamily: bodyFont, fontSize: 12, color: C.ink, margin: "6px 0", lineHeight: 1.6 }}>{t.description}</p>}
-            {t.registration ? (
-              <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 11.5, fontWeight: 700, color: t.registration.paid ? C.primary : "#946515" }}>
-                {t.registration.paid ? "✅ الاشتراك مؤكد ومدفوع" : "⏳ تم تسجيل الاشتراك، في انتظار السداد"}
+            {trip.date && <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.inkSoft, marginTop: 2 }}>📅 {trip.date}</div>}
+            {trip.description && <p style={{ fontFamily: bodyFont, fontSize: 12, color: C.ink, margin: "6px 0", lineHeight: 1.6 }}>{trip.description}</p>}
+            {trip.registration ? (
+              <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 11.5, fontWeight: 700, color: trip.registration.paid ? C.primary : "#946515" }}>
+                {trip.registration.paid ? t("confirmed_paid") : t("pending_payment")}
               </div>
             ) : (
               <button
-                onClick={() => subscribe(t.id)}
-                disabled={busy === t.id}
+                onClick={() => subscribe(trip.id)}
+                disabled={busy === trip.id}
                 className="press"
-                style={{ marginTop: 8, width: "100%", padding: 10, background: C.primary, color: "white", border: "none", borderRadius: 10, fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, opacity: busy === t.id ? 0.6 : 1 }}
+                style={{ marginTop: 8, width: "100%", padding: 10, background: C.primary, color: "white", border: "none", borderRadius: 10, fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, opacity: busy === trip.id ? 0.6 : 1 }}
               >
-                {busy === t.id ? "جاري الاشتراك..." : "اشتراك الآن"}
+                {busy === trip.id ? t("subscribing") : t("subscribe_now")}
               </button>
             )}
           </div>
@@ -521,6 +690,7 @@ function TripsCard({ apiFetch, childId }) {
 }
 
 function ClassPhotosCard({ apiFetch, childId }) {
+  const { t } = useLang();
   const [photos, setPhotos] = useState([]);
 
   useEffect(() => {
@@ -534,7 +704,7 @@ function ClassPhotosCard({ apiFetch, childId }) {
     <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: "0 2px 10px rgba(47,93,80,0.06)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <Images size={17} color={C.primary} />
-        <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: C.ink }}>صور الفصل</span>
+        <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: C.ink }}>{t("class_photos")}</span>
       </div>
       <div style={{ display: "flex", gap: 8, overflowX: "auto" }}>
         {photos.map((p) => (
@@ -549,6 +719,7 @@ function ClassPhotosCard({ apiFetch, childId }) {
 }
 
 function SpecialRequestCard({ apiFetch, childId }) {
+  const { t } = useLang();
   const [requests, setRequests] = useState([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -578,11 +749,11 @@ function SpecialRequestCard({ apiFetch, childId }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <AlertCircle size={17} color={C.primary} />
-          <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: C.ink }}>طلب خاص للمعلمة</span>
+          <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: C.ink }}>{t("special_request_title")}</span>
         </div>
         {!showForm && (
           <button onClick={() => setShowForm(true)} className="press" style={{ background: C.primarySoft, color: C.primary, border: "none", borderRadius: 10, padding: "6px 12px", fontFamily: bodyFont, fontSize: 11.5, fontWeight: 700 }}>
-            + طلب جديد
+            {t("new_request")}
           </button>
         )}
       </div>
@@ -591,15 +762,15 @@ function SpecialRequestCard({ apiFetch, childId }) {
         <div style={{ marginBottom: 12 }}>
           <textarea
             value={text} onChange={(e) => setText(e.target.value)} rows={3}
-            placeholder="مثال: محتاج ياخد الدواء الساعة 12، أو حطيتله جاكيت النهاردة برد..."
+            placeholder={t("special_request_placeholder")}
             style={{ width: "100%", padding: 10, borderRadius: 10, border: `1px solid ${C.line}`, fontFamily: bodyFont, fontSize: 13, resize: "vertical" }}
           />
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
             <button onClick={submit} disabled={sending} className="press" style={{ flex: 1, padding: 10, background: C.primary, color: "white", border: "none", borderRadius: 10, fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, opacity: sending ? 0.6 : 1 }}>
-              {sending ? "جاري الإرسال..." : "إرسال"}
+              {sending ? t("sending") : t("send")}
             </button>
             <button onClick={() => setShowForm(false)} style={{ padding: 10, background: "none", border: `1px solid ${C.line}`, borderRadius: 10, fontFamily: bodyFont, fontSize: 12.5, color: C.inkSoft }}>
-              إلغاء
+              {t("cancel")}
             </button>
           </div>
         </div>
@@ -611,7 +782,7 @@ function SpecialRequestCard({ apiFetch, childId }) {
             <div key={r.id} style={{ background: C.bg, borderRadius: 10, padding: 10 }}>
               <p style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.ink, margin: "0 0 4px", lineHeight: 1.5 }}>{r.text}</p>
               <span style={{ fontFamily: bodyFont, fontSize: 10.5, fontWeight: 700, color: r.status === "acknowledged" ? C.primary : "#946515" }}>
-                {r.status === "acknowledged" ? `✅ وصلت (${r.acknowledged_by_name || ""})` : "⏳ في انتظار الاطلاع"}
+                {r.status === "acknowledged" ? `${t("arrived_status")} (${r.acknowledged_by_name || ""})` : t("pending_status")}
               </span>
             </div>
           ))}
@@ -622,6 +793,7 @@ function SpecialRequestCard({ apiFetch, childId }) {
 }
 
 function MilestonesCard({ apiFetch, childId }) {
+  const { t } = useLang();
   const [milestones, setMilestones] = useState([]);
 
   useEffect(() => {
@@ -635,7 +807,7 @@ function MilestonesCard({ apiFetch, childId }) {
     <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: "0 2px 10px rgba(47,93,80,0.06)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <span style={{ fontSize: 17 }}>🌟</span>
-        <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: C.ink }}>رحلة النمو</span>
+        <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: C.ink }}>{t("growth_journey")}</span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {milestones.slice(0, 5).map((m) => (
@@ -651,6 +823,7 @@ function MilestonesCard({ apiFetch, childId }) {
 }
 
 function TasksCard({ apiFetch, childId }) {
+  const { t } = useLang();
   const [tasks, setTasks] = useState([]);
 
   useEffect(() => {
@@ -664,23 +837,23 @@ function TasksCard({ apiFetch, childId }) {
     <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: "0 2px 10px rgba(47,93,80,0.06)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <CheckCircle2 size={17} color={C.primary} />
-        <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: C.ink }}>مهام النهاردة</span>
+        <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: C.ink }}>{t("today_tasks")}</span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {tasks.map((t) => (
-          <div key={t.id} style={{
-            display: "flex", alignItems: "center", gap: 10, background: t.completed ? C.primarySoft : C.bg,
-            borderRadius: 10, padding: "9px 12px", borderRight: t.is_personal ? `3px solid ${C.honey}` : "none",
+        {tasks.map((task) => (
+          <div key={task.id} style={{
+            display: "flex", alignItems: "center", gap: 10, background: task.completed ? C.primarySoft : C.bg,
+            borderRadius: 10, padding: "9px 12px", borderRight: task.is_personal ? `3px solid ${C.honey}` : "none",
           }}>
             <span style={{
               width: 18, height: 18, borderRadius: 5, flexShrink: 0,
-              background: t.completed ? C.primary : "white", border: `2px solid ${t.completed ? C.primary : C.line}`,
+              background: task.completed ? C.primary : "white", border: `2px solid ${task.completed ? C.primary : C.line}`,
               display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: 11,
             }}>
-              {t.completed && "✓"}
+              {task.completed && "✓"}
             </span>
-            <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.ink, flex: 1, textDecoration: t.completed ? "line-through" : "none" }}>
-              {t.title}{t.time_label && <span style={{ color: C.inkSoft, fontSize: 11 }}> ({t.time_label})</span>}
+            <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.ink, flex: 1, textDecoration: task.completed ? "line-through" : "none" }}>
+              {task.title}{task.time_label && <span style={{ color: C.inkSoft, fontSize: 11 }}> ({task.time_label})</span>}
             </span>
           </div>
         ))}
@@ -690,6 +863,7 @@ function TasksCard({ apiFetch, childId }) {
 }
 
 function WeeklyScheduleCard({ apiFetch, childId }) {
+  const { t } = useLang();
   const [schedule, setSchedule] = useState(null);
   const [showFullWeek, setShowFullWeek] = useState(false);
 
@@ -710,10 +884,10 @@ function WeeklyScheduleCard({ apiFetch, childId }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <CalendarCheck size={17} color={C.primary} />
-          <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: C.ink }}>جدول الأسبوع</span>
+          <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: C.ink }}>{t("weekly_schedule")}</span>
         </div>
         <button onClick={() => setShowFullWeek(!showFullWeek)} className="press" style={{ background: C.primarySoft, color: C.primary, border: "none", borderRadius: 10, padding: "5px 10px", fontFamily: bodyFont, fontSize: 11, fontWeight: 700 }}>
-          {showFullWeek ? "النهاردة بس" : "كل الأسبوع"}
+          {showFullWeek ? t("today_only") : t("whole_week")}
         </button>
       </div>
 
@@ -721,10 +895,10 @@ function WeeklyScheduleCard({ apiFetch, childId }) {
         {daysToShow.map((day) => (
           <div key={day.index}>
             <div style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12, color: day.index === schedule.today_index ? C.primary : C.inkSoft, marginBottom: 6 }}>
-              {day.name} {day.index === schedule.today_index && "(النهاردة)"}
+              {day.name} {day.index === schedule.today_index && t("today_label")}
             </div>
             {day.items.length === 0 ? (
-              <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.inkSoft, paddingRight: 4 }}>مفيش نشاط مسجل</div>
+              <div style={{ fontFamily: bodyFont, fontSize: 11.5, color: C.inkSoft, paddingRight: 4 }}>{t("no_activity")}</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {day.items.map((item, i) => (
@@ -744,6 +918,7 @@ function WeeklyScheduleCard({ apiFetch, childId }) {
 }
 
 function HomeTab({ apiFetch, childId, notifications, medicalNotes }) {
+  const { t } = useLang();
   const [today, setToday] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState(null);
   const [announcements, setAnnouncements] = useState([]);
@@ -761,7 +936,7 @@ function HomeTab({ apiFetch, childId, notifications, medicalNotes }) {
       .catch((e) => setError(e.message)).finally(() => setLoading(false));
   }, [childId, apiFetch]);
 
-  if (loading) return <Spinner label="بنجيب تحديث النهاردة..." />;
+  if (loading) return <Spinner label={t("fetching_today_update")} />;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14, padding: "16px 14px 90px" }}>
       <NotificationBanner notifications={notifications} />
@@ -781,6 +956,7 @@ function HomeTab({ apiFetch, childId, notifications, medicalNotes }) {
 }
 
 function LogsTab({ apiFetch, childId }) {
+  const { t } = useLang();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -791,7 +967,7 @@ function LogsTab({ apiFetch, childId }) {
     apiFetch(`/api/child/${childId}/logs?limit=30`).then(setLogs).catch((e) => setError(e.message)).finally(() => setLoading(false));
   }, [childId, apiFetch]);
 
-  if (loading) return <Spinner label="بنجيب السجل اليومي..." />;
+  if (loading) return <Spinner label={t("fetching_logs")} />;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "16px 14px 90px" }}>
       {error && <ErrorNote message={error} />}
@@ -799,7 +975,7 @@ function LogsTab({ apiFetch, childId }) {
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 50 }}>
           <BookOpen size={28} color={C.line} />
           <p style={{ fontFamily: bodyFont, fontSize: 13, color: C.inkSoft, textAlign: "center", margin: 0 }}>
-            هنا هيتجمع سجل يوميات طفلك يوم بيوم
+            {t("daily_log_empty")}
           </p>
         </div>
       )}
@@ -827,6 +1003,7 @@ function LogsTab({ apiFetch, childId }) {
 }
 
 function AttendanceTab({ apiFetch, childId }) {
+  const { t } = useLang();
   const [attendance, setAttendance] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -842,7 +1019,7 @@ function AttendanceTab({ apiFetch, childId }) {
     ]).then(([a, p]) => { setAttendance(a); setPayments(p); }).catch((e) => setError(e.message)).finally(() => setLoading(false));
   }, [childId, apiFetch]);
 
-  if (loading) return <Spinner label="بنجيب الحضور والمصروفات..." />;
+  if (loading) return <Spinner label={t("fetching_attendance")} />;
   const presentCount = attendance.filter((r) => r.present).length;
 
   return (
@@ -876,6 +1053,7 @@ function AttendanceTab({ apiFetch, childId }) {
 }
 
 function MessagesTab({ apiFetch, childId }) {
+  const { t } = useLang();
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
@@ -899,7 +1077,7 @@ function MessagesTab({ apiFetch, childId }) {
     } catch (e) { setError(e.message); } finally { setSending(false); }
   };
 
-  if (loading) return <Spinner label="بنجيب الرسائل..." />;
+  if (loading) return <Spinner label={t("fetching_messages")} />;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -935,7 +1113,7 @@ function MessagesTab({ apiFetch, childId }) {
         <input
           value={text} onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
-          placeholder="اكتبي رسالتك..."
+          placeholder={t("type_message")}
           style={{ flex: 1, background: C.card, borderRadius: 20, padding: "10px 16px", fontFamily: bodyFont, fontSize: 13, border: "none", color: C.ink }}
         />
         <button onClick={send} disabled={sending} className="press" style={{ width: 40, height: 40, borderRadius: "50%", background: C.primary, border: "none", display: "flex", alignItems: "center", justifyContent: "center", opacity: sending ? 0.6 : 1 }}>
@@ -947,13 +1125,22 @@ function MessagesTab({ apiFetch, childId }) {
 }
 
 const TABS = [
-  { key: "home", label: "الرئيسية", icon: Home },
-  { key: "logs", label: "اليوميات", icon: BookOpen },
-  { key: "attendance", label: "الحضور", icon: CalendarCheck },
-  { key: "messages", label: "رسائل", icon: MessageCircle },
+  { key: "home", labelKey: "nav_home", icon: Home },
+  { key: "logs", labelKey: "nav_logs", icon: BookOpen },
+  { key: "attendance", labelKey: "nav_attendance", icon: CalendarCheck },
+  { key: "messages", labelKey: "nav_messages", icon: MessageCircle },
 ];
 
 export default function App() {
+  return (
+    <I18nProvider>
+      <AppInner />
+    </I18nProvider>
+  );
+}
+
+function AppInner() {
+  const { t, dir, lang, setLang } = useLang();
   const apiFetch = useApi();
   const notifications = useNotifications(apiFetch);
 
@@ -985,7 +1172,7 @@ export default function App() {
   const activeChild = children.find((c) => c.id === childId);
 
   return (
-    <div dir="rtl" style={{
+    <div dir={dir} style={{
       fontFamily: bodyFont, background: C.bg, minHeight: "100vh", maxWidth: 480, margin: "0 auto",
       display: "flex", flexDirection: "column", position: "relative",
     }}>
@@ -1013,7 +1200,7 @@ export default function App() {
       )}
 
       {!authChecked ? (
-        <Spinner label="بنتأكد من تسجيل الدخول..." />
+        <Spinner label={t("checking_login")} />
       ) : !user ? (
         <LoginScreen apiFetch={apiFetch} onLoggedIn={setUser} />
       ) : (
@@ -1051,7 +1238,7 @@ export default function App() {
 
           <div style={{ flex: 1, overflowY: tab === "messages" ? "hidden" : "auto", display: "flex", flexDirection: "column" }}>
             {!childId ? (
-              <Spinner label="بنجيب بيانات طفلك..." />
+              <Spinner label={t("fetching_child_data")} />
             ) : (
               <div key={tab} className="tab-fade" style={{ display: "flex", flexDirection: "column", flex: 1 }}>
                 {tab === "home" && <HomeTab apiFetch={apiFetch} childId={childId} notifications={notifications} medicalNotes={activeChild?.medical_notes} />}
@@ -1063,18 +1250,18 @@ export default function App() {
           </div>
 
           <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto", background: C.card, borderTop: `1px solid ${C.line}`, display: "flex", padding: "8px 8px calc(env(safe-area-inset-bottom, 8px))" }}>
-            {TABS.map((t) => {
-              const Icon = t.icon;
-              const isActive = t.key === tab;
+            {TABS.map((tab_) => {
+              const Icon = tab_.icon;
+              const isActive = tab_.key === tab;
               return (
-                <button key={t.key} onClick={() => setTab(t.key)} className="nav-btn" style={{ flex: 1, background: "none", border: "none", display: "flex", justifyContent: "center", padding: "4px 2px", cursor: "pointer" }}>
+                <button key={tab_.key} onClick={() => setTab(tab_.key)} className="nav-btn" style={{ flex: 1, background: "none", border: "none", display: "flex", justifyContent: "center", padding: "4px 2px", cursor: "pointer" }}>
                   <div className="nav-pill" style={{
                     display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
                     padding: "6px 14px", borderRadius: 14,
                     background: isActive ? C.primarySoft : "transparent",
                   }}>
                     <Icon size={19} color={isActive ? C.primary : C.inkSoft} strokeWidth={isActive ? 2.4 : 1.8} />
-                    <span style={{ fontFamily: bodyFont, fontSize: 10.5, color: isActive ? C.primary : C.inkSoft, fontWeight: isActive ? 700 : 400 }}>{t.label}</span>
+                    <span style={{ fontFamily: bodyFont, fontSize: 10.5, color: isActive ? C.primary : C.inkSoft, fontWeight: isActive ? 700 : 400 }}>{t(tab_.labelKey)}</span>
                   </div>
                 </button>
               );

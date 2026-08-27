@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="{{ lang }}" dir="{{ dir }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>تسجيل الدخول — Kinder Care</title>
+  <title>{{ t('login_button') }} — {{ t('app_name') }}</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@700;800&family=Tajawal:wght@400;500;700&display=swap');
     * { box-sizing: border-box; }
@@ -13,7 +13,12 @@
     }
     .card {
       background: white; border-radius: 20px; padding: 30px 24px; width: 100%; max-width: 360px;
-      box-shadow: 0 4px 20px rgba(47,93,80,0.08); text-align: center;
+      box-shadow: 0 4px 20px rgba(47,93,80,0.08); text-align: center; position: relative;
+    }
+    .lang-toggle {
+      position: absolute; top: 14px; {{ 'left' if dir == 'rtl' else 'right' }}: 14px;
+      font-size: 11px; color: #5B6B5E; text-decoration: none; background: #F4F7F1;
+      padding: 5px 10px; border-radius: 20px;
     }
     .logo {
       width: 56px; height: 56px; border-radius: 50%; margin: 0 auto 14px;
@@ -23,7 +28,7 @@
     }
     h1 { font-family: 'Cairo', sans-serif; font-size: 19px; color: #1F2A22; margin: 0 0 4px; }
     p.sub { font-size: 13px; color: #5B6B5E; margin: 0 0 22px; }
-    form { text-align: right; }
+    form { text-align: {{ 'right' if dir == 'rtl' else 'left' }}; }
     label { font-size: 13px; color: #1F2A22; display: block; margin-bottom: 6px; }
     input {
       width: 100%; padding: 12px 14px; border: 1px solid #E4E9E1; border-radius: 12px;
@@ -33,7 +38,7 @@
       width: 100%; padding: 13px; background: #2F5D50; color: white; border: none;
       border-radius: 12px; font-family: 'Tajawal', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer;
     }
-    .error { background: #F8DFD9; color: #B23A22; padding: 10px 12px; border-radius: 10px; font-size: 13px; margin-bottom: 16px; text-align: right; }
+    .error { background: #F8DFD9; color: #B23A22; padding: 10px 12px; border-radius: 10px; font-size: 13px; margin-bottom: 16px; text-align: {{ 'right' if dir == 'rtl' else 'left' }}; }
     .social { display: flex; justify-content: center; gap: 14px; margin-top: 24px; }
     .social a { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: #F4F7F1; text-decoration: none; }
     .social img { width: 18px; height: 18px; }
@@ -41,20 +46,21 @@
 </head>
 <body>
   <div class="card">
+    <a class="lang-toggle" href="{{ url_for('set_language', lang_code='en' if lang == 'ar' else 'ar') }}">{{ t('language_switch') }}</a>
     {% if nursery and nursery.logo_data %}
-      <img src="{{ url_for('nursery_logo') }}" alt="{{ nursery.name }}" style="max-width: 90px; max-height: 90px; border-radius: 16px; margin: 0 auto 14px;">
+      <img src="{{ url_for('nursery_logo') }}" alt="{{ t('logo_alt') }}" style="max-width: 90px; max-height: 90px; border-radius: 16px; margin: 0 auto 14px;">
     {% else %}
       <div class="logo">K</div>
     {% endif %}
-    <h1>{{ nursery.name if nursery else 'Kinder Care' }}</h1>
-    <p class="sub">سجّلي دخولك — هنوديكي تلقائياً لقسمك</p>
+    <h1>{{ nursery.name if nursery else t('app_name') }}</h1>
+    <p class="sub">{{ t('login_title') }}</p>
     {% if error %}<div class="error">{{ error }}</div>{% endif %}
     <form method="POST">
-      <label>رقم الهاتف</label>
+      <label>{{ t('phone') }}</label>
       <input type="tel" name="phone" placeholder="01xxxxxxxxx" required autofocus>
-      <label>كلمة المرور</label>
+      <label>{{ t('password') }}</label>
       <input type="password" name="password" required>
-      <button type="submit">دخول</button>
+      <button type="submit">{{ t('login_button') }}</button>
     </form>
 
     {% if nursery and (nursery.facebook_url or nursery.instagram_url or nursery.tiktok_url) %}
