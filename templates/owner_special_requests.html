@@ -1,0 +1,44 @@
+{% extends "owner_base.html" %}
+{% block header_title %}الطلبات الخاصة{% endblock %}
+{% set active = "special_requests" %}
+{% block content %}
+<div class="card">
+  <h2>طلبات معلّقة ({{ pending|length }})</h2>
+  {% if not pending %}
+    <p style="font-size: 13px; color: #5B6B5E;">مفيش طلبات معلّقة حالياً</p>
+  {% endif %}
+  <div style="display: flex; flex-direction: column; gap: 10px;">
+    {% for r in pending %}
+    <div style="background: #FBEBCB; border-radius: 12px; padding: 12px 14px;">
+      <div style="font-size: 11px; color: #946515; font-weight: 700; margin-bottom: 4px;">
+        {{ r.child.name }} — من {{ r.parent.name }} — {{ r.date.strftime('%d/%m/%Y') }}
+      </div>
+      <p style="font-size: 13px; color: #1F2A22; margin: 0 0 10px; line-height: 1.6;">{{ r.text }}</p>
+      <form method="POST">
+        <input type="hidden" name="request_id" value="{{ r.id }}">
+        <button type="submit" class="primary" style="width: auto; padding: 8px 14px;">تم الاطلاع ووصلني ✓</button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card">
+  <h2>طلبات تم الرد عليها مؤخراً</h2>
+  {% if not acknowledged %}
+    <p style="font-size: 13px; color: #5B6B5E;">لسه مفيش</p>
+  {% endif %}
+  <table>
+    <thead><tr><th>الطفل</th><th>النص</th><th>رد عليها</th></tr></thead>
+    <tbody>
+      {% for r in acknowledged %}
+      <tr>
+        <td>{{ r.child.name }}</td>
+        <td style="font-size: 12px;">{{ r.text }}</td>
+        <td style="font-size: 11px;">{{ r.acknowledged_by_name }} ({{ 'المعلمة' if r.acknowledged_by_role == 'teacher' else 'المالكة' }})</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -54,6 +54,7 @@
             <div class="name">
               {{ child.name }}
               {% if child.medical_notes %}<span style="color:#B23A22;">⚠</span>{% endif %}
+              {% if child.id in pending_requests_child_ids %}<span title="فيه طلب من ولي الأمر">📌</span>{% endif %}
             </div>
             <div class="status">
               {% if log and log.mood %}

@@ -531,6 +531,79 @@ function ClassPhotosCard({ apiFetch, childId }) {
   );
 }
 
+function SpecialRequestCard({ apiFetch, childId }) {
+  const [requests, setRequests] = useState([]);
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+
+  const load = useCallback(() => {
+    apiFetch(`/api/child/${childId}/special-requests`).then(setRequests).catch(() => {});
+  }, [childId, apiFetch]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const submit = async () => {
+    if (!text.trim()) return;
+    setSending(true);
+    try {
+      await apiFetch(`/api/child/${childId}/special-requests`, { method: "POST", body: JSON.stringify({ text }) });
+      setText("");
+      setShowForm(false);
+      load();
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: "0 2px 10px rgba(47,93,80,0.06)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <AlertCircle size={17} color={C.primary} />
+          <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: C.ink }}>طلب خاص للمعلمة</span>
+        </div>
+        {!showForm && (
+          <button onClick={() => setShowForm(true)} className="press" style={{ background: C.primarySoft, color: C.primary, border: "none", borderRadius: 10, padding: "6px 12px", fontFamily: bodyFont, fontSize: 11.5, fontWeight: 700 }}>
+            + طلب جديد
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <div style={{ marginBottom: 12 }}>
+          <textarea
+            value={text} onChange={(e) => setText(e.target.value)} rows={3}
+            placeholder="مثال: محتاج ياخد الدواء الساعة 12، أو حطيتله جاكيت النهاردة برد..."
+            style={{ width: "100%", padding: 10, borderRadius: 10, border: `1px solid ${C.line}`, fontFamily: bodyFont, fontSize: 13, resize: "vertical" }}
+          />
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <button onClick={submit} disabled={sending} className="press" style={{ flex: 1, padding: 10, background: C.primary, color: "white", border: "none", borderRadius: 10, fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, opacity: sending ? 0.6 : 1 }}>
+              {sending ? "جاري الإرسال..." : "إرسال"}
+            </button>
+            <button onClick={() => setShowForm(false)} style={{ padding: 10, background: "none", border: `1px solid ${C.line}`, borderRadius: 10, fontFamily: bodyFont, fontSize: 12.5, color: C.inkSoft }}>
+              إلغاء
+            </button>
+          </div>
+        </div>
+      )}
+
+      {requests.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {requests.slice(0, 4).map((r) => (
+            <div key={r.id} style={{ background: C.bg, borderRadius: 10, padding: 10 }}>
+              <p style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.ink, margin: "0 0 4px", lineHeight: 1.5 }}>{r.text}</p>
+              <span style={{ fontFamily: bodyFont, fontSize: 10.5, fontWeight: 700, color: r.status === "acknowledged" ? C.primary : "#946515" }}>
+                {r.status === "acknowledged" ? `✅ وصلت (${r.acknowledged_by_name || ""})` : "⏳ في انتظار الاطلاع"}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function HomeTab({ apiFetch, childId, notifications, medicalNotes }) {
   const [today, setToday] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState(null);
@@ -559,6 +632,7 @@ function HomeTab({ apiFetch, childId, notifications, medicalNotes }) {
       <AnnouncementsCard announcements={announcements} />
       <TripsCard apiFetch={apiFetch} childId={childId} />
       <ClassPhotosCard apiFetch={apiFetch} childId={childId} />
+      <SpecialRequestCard apiFetch={apiFetch} childId={childId} />
       <DayPathCard today={today} />
     </div>
   );

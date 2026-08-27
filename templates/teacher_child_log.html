@@ -47,6 +47,24 @@
   </div>
   {% endif %}
 
+  {% if special_requests %}
+  <div style="margin:16px; display:flex; flex-direction:column; gap:8px;">
+    {% for r in special_requests %}
+    <div style="background:#FBEBCB; border-radius:12px; padding:12px 14px;">
+      <div style="font-size:11px; color:#946515; font-weight:700; margin-bottom:4px;">
+        📌 طلب من {{ r.parent.name }} — {{ r.date.strftime('%d/%m') }}
+      </div>
+      <p style="font-size:13px; color:#1F2A22; margin:0 0 10px; line-height:1.6;">{{ r.text }}</p>
+      <form method="POST" action="{{ url_for('teacher_acknowledge_request', req_id=r.id) }}">
+        <button type="submit" style="background:#2F5D50; color:white; border:none; border-radius:10px; padding:8px 14px; font-family:'Tajawal',sans-serif; font-size:12px; font-weight:700; cursor:pointer;">
+          تم الاطلاع ووصلتني ✓
+        </button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   <form method="POST">
     <div>
       <span class="section-label">المزاج</span>

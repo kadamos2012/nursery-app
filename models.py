@@ -308,6 +308,24 @@ class ClassPhoto(db.Model):
     school_class = db.relationship("SchoolClass")
 
 
+class SpecialRequest(db.Model):
+    """A note from a parent to the teacher/owner about their child (medication time,
+    specific clothing needed, etc.), with an acknowledgement flow."""
+    id = db.Column(db.Integer, primary_key=True)
+    child_id = db.Column(db.Integer, db.ForeignKey("child.id"), nullable=False)
+    parent_id = db.Column(db.Integer, db.ForeignKey("parent.id"), nullable=False)
+    text = db.Column(db.Text, nullable=False)
+    date = db.Column(db.Date, nullable=False, default=date.today)
+    status = db.Column(db.String(20), nullable=False, default="pending")  # "pending" | "acknowledged"
+    acknowledged_by_role = db.Column(db.String(10), nullable=True)  # "teacher" | "owner"
+    acknowledged_by_name = db.Column(db.String(150), nullable=True)
+    acknowledged_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    child = db.relationship("Child")
+    parent = db.relationship("Parent")
+
+
 class Announcement(db.Model):
     """A notice posted by the owner, shown to parents of a specific class or the whole nursery."""
     id = db.Column(db.Integer, primary_key=True)

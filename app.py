@@ -13,7 +13,7 @@ from models import (
     Owner, Employee, SalaryPayment, Expense, Activity, Addon, ChildAddon,
     PaymentMethod, Advance, ExpenseCategory, Announcement,
     Trip, TripCostItem, TripClass, TripRegistration,
-    EnrollmentRequest, ClassPhoto
+    EnrollmentRequest, ClassPhoto, SpecialRequest
 )
 from pywebpush import webpush, WebPushException
 import json as json_lib
@@ -454,6 +454,35 @@ def child_class_photos(child_id):
     } for p in photos])
 
 
+@app.route("/api/child/<int:child_id>/special-requests", methods=["GET", "POST"])
+@login_required
+def child_special_requests(child_id):
+    if current_role() == "parent" and not child_belongs_to_parent(child_id, current_user.id):
+        return jsonify({"error": "غير مصرح"}), 403
+
+    if request.method == "POST":
+        text = (request.get_json(force=True) or {}).get("text", "").strip()
+        if not text:
+            return jsonify({"error": "اكتبي نص الطلب"}), 400
+
+        req = SpecialRequest(child_id=child_id, parent_id=current_user.id, text=text)
+        db.session.add(req)
+        db.session.commit()
+
+        child = Child.query.get(child_id)
+        if child.school_class and child.school_class.teachers:
+            pass  # teachers are notified by checking their dashboard; no push channel for teachers yet
+
+        return jsonify({"ok": True, "id": req.id})
+
+    requests_list = SpecialRequest.query.filter_by(child_id=child_id).order_by(SpecialRequest.created_at.desc()).limit(20).all()
+    return jsonify([{
+        "id": r.id, "text": r.text, "date": r.date.isoformat(), "status": r.status,
+        "acknowledged_by_role": r.acknowledged_by_role, "acknowledged_by_name": r.acknowledged_by_name,
+        "created_at": r.created_at.isoformat(),
+    } for r in requests_list])
+
+
 @app.route("/api/child/<int:child_id>/messages", methods=["GET", "POST"])
 @login_required
 def child_messages(child_id):
@@ -615,8 +644,14 @@ def teacher_dashboard():
 
     today = date.today()
     logs_today = {l.child_id: l for l in DailyLog.query.filter_by(date=today).all()}
+    pending_requests_child_ids = {
+        r.child_id for r in SpecialRequest.query.filter_by(status="pending").all()
+    }
 
-    return render_template("teacher_dashboard.html", children=children, logs_today=logs_today, today=today)
+    return render_template(
+        "teacher_dashboard.html", children=children, logs_today=logs_today, today=today,
+        pending_requests_child_ids=pending_requests_child_ids,
+    )
 
 
 @app.route("/teacher/child/<int:child_id>/log", methods=["GET", "POST"])
@@ -646,7 +681,28 @@ def teacher_child_log(child_id):
         notify_child_parents(child_id, f"تحديث جديد لـ {child.name}", "المعلمة حدّثت يوميات طفلك — افتحي التطبيق للتفاصيل")
         return redirect(url_for("teacher_dashboard"))
 
-    return render_template("teacher_child_log.html", child=child, log=log)
+    return render_template(
+        "teacher_child_log.html", child=child, log=log,
+        special_requests=SpecialRequest.query.filter_by(child_id=child_id, status="pending").order_by(SpecialRequest.date).all(),
+    )
+
+
+@app.route("/teacher/special-requests/<int:req_id>/acknowledge", methods=["POST"])
+@login_required
+def teacher_acknowledge_request(req_id):
+    if current_role() != "teacher":
+        return redirect(url_for("unified_login"))
+
+    req = SpecialRequest.query.get_or_404(req_id)
+    req.status = "acknowledged"
+    req.acknowledged_by_role = "teacher"
+    req.acknowledged_by_name = current_user.name
+    req.acknowledged_at = datetime.utcnow()
+    db.session.commit()
+
+    notify_child_parents(req.child_id, "وصل طلبك ✅", f"المعلمة {current_user.name} اطّلعت على طلبك: {req.text}")
+
+    return redirect(url_for("teacher_child_log", child_id=req.child_id))
 
 
 # ---------------------------------------------------------------------------
@@ -998,6 +1054,28 @@ def owner_pay_trip_registration(reg_id):
     reg.payment_method_id = request.form.get("payment_method_id") or None
     db.session.commit()
     return redirect(url_for("owner_trip_detail", trip_id=reg.trip_id))
+
+
+@app.route("/owner/special-requests", methods=["GET", "POST"])
+@login_required
+def owner_special_requests():
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    if request.method == "POST":
+        req_id = request.form.get("request_id")
+        req = SpecialRequest.query.get_or_404(req_id)
+        req.status = "acknowledged"
+        req.acknowledged_by_role = "owner"
+        req.acknowledged_by_name = current_user.name
+        req.acknowledged_at = datetime.utcnow()
+        db.session.commit()
+        notify_child_parents(req.child_id, "وصل طلبك ✅", f"إدارة الحضانة اطّلعت على طلبك: {req.text}")
+        return redirect(url_for("owner_special_requests"))
+
+    pending = SpecialRequest.query.filter_by(status="pending").order_by(SpecialRequest.date).all()
+    acknowledged = SpecialRequest.query.filter_by(status="acknowledged").order_by(SpecialRequest.acknowledged_at.desc()).limit(20).all()
+    return render_template("owner_special_requests.html", pending=pending, acknowledged=acknowledged)
 
 
 @app.route("/owner/birthdays")
