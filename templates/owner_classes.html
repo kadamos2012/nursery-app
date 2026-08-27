@@ -1,0 +1,28 @@
+{% extends "owner_base.html" %}
+{% block header_title %}الفصول{% endblock %}
+{% set active = "classes" %}
+{% block content %}
+<div class="card">
+  <h2>إضافة فصل جديد</h2>
+  <form class="inline" method="POST">
+    <input type="text" name="name" placeholder="اسم الفصل، مثال: الفراشات" required>
+    <button type="submit" class="primary">إضافة الفصل</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>كل الفصول ({{ classes|length }})</h2>
+  <table>
+    <thead><tr><th>اسم الفصل</th><th>عدد الطلبة</th><th></th></tr></thead>
+    <tbody>
+      {% for c in classes %}
+      <tr>
+        <td>{{ c.name }}</td>
+        <td>{{ counts[c.id] }}</td>
+        <td><a class="row-link" href="{{ url_for('owner_class_students', class_id=c.id) }}">إدارة الطلبة ←</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

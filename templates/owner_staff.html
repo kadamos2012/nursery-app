@@ -1,0 +1,40 @@
+{% extends "owner_base.html" %}
+{% block header_title %}الموظفين والمرتبات{% endblock %}
+{% set active = "staff" %}
+{% block content %}
+<div class="card">
+  <h2>إضافة موظف جديد</h2>
+  <form class="inline" method="POST">
+    <input type="text" name="name" placeholder="اسم الموظف" required>
+    <input type="text" name="role" placeholder="الوظيفة، مثال: معلمة">
+    <input type="tel" name="phone" placeholder="رقم الهاتف">
+    <input type="number" step="0.01" name="monthly_salary" placeholder="المرتب الشهري" required>
+    <button type="submit" class="primary">إضافة الموظف</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>الموظفين ({{ employees|length }}) — مرتبات {{ today.month }}/{{ today.year }}</h2>
+  <table>
+    <thead><tr><th>الاسم</th><th>الوظيفة</th><th>المرتب</th><th>حالة الصرف</th></tr></thead>
+    <tbody>
+      {% for e in employees %}
+      <tr>
+        <td>{{ e.name }}</td>
+        <td>{{ e.role or '—' }}</td>
+        <td>{{ "%.0f"|format(e.monthly_salary) }} ج</td>
+        <td>
+          {% if paid_status.get(e.id) %}
+            <span class="badge paid">اتصرف</span>
+          {% else %}
+            <form method="POST" action="{{ url_for('owner_pay_salary', employee_id=e.id) }}" style="display:inline;">
+              <button type="submit" class="badge due" style="border:none;cursor:pointer;">اصرف المرتب</button>
+            </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

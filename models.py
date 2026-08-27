@@ -136,3 +136,70 @@ class PushSubscription(db.Model):
     p256dh = db.Column(db.String(255), nullable=False)
     auth = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+# ---------- Owner / back-office (accounting) ----------
+
+class Owner(UserMixin, db.Model):
+    """The nursery owner: full access to accounting, staff, classes, and activities."""
+    id = db.Column(db.Integer, primary_key=True)
+    nursery_id = db.Column(db.Integer, db.ForeignKey("nursery.id"), nullable=False)
+    name = db.Column(db.String(150), nullable=False)
+    phone = db.Column(db.String(30), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+
+    def set_password(self, raw):
+        self.password_hash = generate_password_hash(raw)
+
+    def check_password(self, raw):
+        return check_password_hash(self.password_hash, raw)
+
+    def get_id(self):
+        return f"owner:{self.id}"
+
+
+class Employee(db.Model):
+    """Staff member (teacher, warehouse keeper, admin, etc.) with a monthly salary."""
+    id = db.Column(db.Integer, primary_key=True)
+    nursery_id = db.Column(db.Integer, db.ForeignKey("nursery.id"), nullable=False)
+    name = db.Column(db.String(150), nullable=False)
+    role = db.Column(db.String(100), nullable=True)  # job title, e.g. "معلمة", "إدارية"
+    phone = db.Column(db.String(30), nullable=True)
+    monthly_salary = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    hire_date = db.Column(db.Date, nullable=True)
+    active = db.Column(db.Boolean, default=True)
+
+    salary_payments = db.relationship("SalaryPayment", backref="employee", lazy=True)
+
+
+class SalaryPayment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey("employee.id"), nullable=False)
+    month = db.Column(db.Integer, nullable=False)
+    year = db.Column(db.Integer, nullable=False)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    paid = db.Column(db.Boolean, default=False)
+    paid_date = db.Column(db.Date, nullable=True)
+
+    __table_args__ = (db.UniqueConstraint("employee_id", "month", "year", name="uq_salary_emp_month_year"),)
+
+
+class Expense(db.Model):
+    """A general nursery expense (rent, supplies, utilities, maintenance, etc.)."""
+    id = db.Column(db.Integer, primary_key=True)
+    nursery_id = db.Column(db.Integer, db.ForeignKey("nursery.id"), nullable=False)
+    category = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.String(255), nullable=True)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    date = db.Column(db.Date, nullable=False, default=date.today)
+    created_by_owner_id = db.Column(db.Integer, db.ForeignKey("owner.id"), nullable=True)
+
+
+class Activity(db.Model):
+    """A nursery activity (trip, party, workshop) with an associated cost."""
+    id = db.Column(db.Integer, primary_key=True)
+    nursery_id = db.Column(db.Integer, db.ForeignKey("nursery.id"), nullable=False)
+    name = db.Column(db.String(150), nullable=False)
+    date = db.Column(db.Date, nullable=True)
+    cost = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    notes = db.Column(db.Text, nullable=True)

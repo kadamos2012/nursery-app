@@ -1,0 +1,49 @@
+{% extends "owner_base.html" %}
+{% block header_title %}التقرير المالي — {{ month }}/{{ year }}{% endblock %}
+{% set active = "reports" %}
+{% block content %}
+<div class="card">
+  <h2>اختاري الشهر</h2>
+  <form class="inline" method="GET" style="flex-direction: row; gap: 8px;">
+    <select name="month">
+      {% for m in range(1, 13) %}
+        <option value="{{ m }}" {{ 'selected' if m == month }}>{{ m }}</option>
+      {% endfor %}
+    </select>
+    <input type="number" name="year" value="{{ year }}" style="width: 90px;">
+    <button type="submit" class="primary" style="width: auto; padding: 11px 16px;">عرض</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>الإيراد</h2>
+  <table>
+    <tr><td>مصروفات دراسية محصّلة</td><td>{{ "%.0f"|format(tuition_paid) }} ج</td></tr>
+    <tr><td>مصروفات دراسية مستحقة (لسه)</td><td>{{ "%.0f"|format(tuition_due) }} ج</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h2>المصروفات حسب النوع</h2>
+  <table>
+    {% for cat, amount in expenses_by_category.items() %}
+    <tr><td>{{ cat }}</td><td>{{ "%.0f"|format(amount) }} ج</td></tr>
+    {% else %}
+    <tr><td colspan="2">لا توجد مصروفات مسجلة هذا الشهر</td></tr>
+    {% endfor %}
+    <tr style="font-weight:700;"><td>إجمالي المصروفات العامة</td><td>{{ "%.0f"|format(expenses_total) }} ج</td></tr>
+    <tr><td>مرتبات مدفوعة</td><td>{{ "%.0f"|format(salaries_total) }} ج</td></tr>
+    <tr><td>تكلفة الأنشطة</td><td>{{ "%.0f"|format(activities_cost) }} ج</td></tr>
+  </table>
+</div>
+
+<div class="card" style="background: {{ 'rgb(220,234,227)' if net >= 0 else 'rgb(248,223,217)' }};">
+  <h2>صافي الربح</h2>
+  <div style="font-family: 'Cairo', sans-serif; font-weight: 800; font-size: 26px; color: {{ '#2F5D50' if net >= 0 else '#B23A22' }};">
+    {{ "%.0f"|format(net) }} ج
+  </div>
+  <div style="font-size: 11.5px; color: #5B6B5E; margin-top: 6px;">
+    = الإيراد المحصّل − (المصروفات العامة + المرتبات المدفوعة + تكلفة الأنشطة)
+  </div>
+</div>
+{% endblock %}

@@ -9,7 +9,8 @@ from flask_cors import CORS
 
 from models import (
     db, Nursery, SchoolClass, Teacher, Parent, Child, ParentChild,
-    DailyLog, AttendanceRecord, Payment, Message, PushSubscription
+    DailyLog, AttendanceRecord, Payment, Message, PushSubscription,
+    Owner, Employee, SalaryPayment, Expense, Activity
 )
 from pywebpush import webpush, WebPushException
 import json as json_lib
@@ -50,13 +51,19 @@ def load_user(user_id):
         return Teacher.query.get(int(raw_id))
     if kind == "parent":
         return Parent.query.get(int(raw_id))
+    if kind == "owner":
+        return Owner.query.get(int(raw_id))
     return None
 
 
 def current_role():
     if not current_user.is_authenticated:
         return None
-    return "teacher" if isinstance(current_user, Teacher) else "parent"
+    if isinstance(current_user, Teacher):
+        return "teacher"
+    if isinstance(current_user, Owner):
+        return "owner"
+    return "parent"
 
 
 def child_belongs_to_parent(child_id, parent_id):
@@ -367,6 +374,243 @@ def teacher_child_log(child_id):
 
 
 # ---------------------------------------------------------------------------
+# Owner-facing pages: accounting, classes, students, activities, staff
+# ---------------------------------------------------------------------------
+
+def require_owner():
+    return current_role() == "owner"
+
+
+@app.route("/owner/login", methods=["GET", "POST"])
+def owner_login():
+    if request.method == "POST":
+        phone = request.form.get("phone", "").strip()
+        password = request.form.get("password", "")
+        owner = Owner.query.filter_by(phone=phone).first()
+        if owner and owner.check_password(password):
+            login_user(owner)
+            return redirect(url_for("owner_dashboard"))
+        return render_template("owner_login.html", error="رقم الهاتف أو كلمة المرور غير صحيحة")
+    return render_template("owner_login.html", error=None)
+
+
+@app.route("/owner")
+@login_required
+def owner_dashboard():
+    if not require_owner():
+        return redirect(url_for("owner_login"))
+
+    today = date.today()
+    month, year = today.month, today.year
+
+    tuition_paid = db.session.query(db.func.coalesce(db.func.sum(Payment.amount), 0)).filter(
+        Payment.month == month, Payment.year == year, Payment.paid.is_(True)
+    ).scalar()
+    tuition_due = db.session.query(db.func.coalesce(db.func.sum(Payment.amount), 0)).filter(
+        Payment.month == month, Payment.year == year, Payment.paid.is_(False)
+    ).scalar()
+    expenses_total = db.session.query(db.func.coalesce(db.func.sum(Expense.amount), 0)).filter(
+        db.extract("month", Expense.date) == month, db.extract("year", Expense.date) == year
+    ).scalar()
+    salaries_total = db.session.query(db.func.coalesce(db.func.sum(SalaryPayment.amount), 0)).filter(
+        SalaryPayment.month == month, SalaryPayment.year == year
+    ).scalar()
+    activities_cost = db.session.query(db.func.coalesce(db.func.sum(Activity.cost), 0)).filter(
+        db.extract("month", Activity.date) == month, db.extract("year", Activity.date) == year
+    ).scalar()
+
+    net = float(tuition_paid) - float(expenses_total) - float(salaries_total) - float(activities_cost)
+
+    classes_count = SchoolClass.query.count()
+    students_count = Child.query.count()
+    staff_count = Employee.query.filter_by(active=True).count()
+
+    return render_template(
+        "owner_dashboard.html", month=month, year=year,
+        tuition_paid=tuition_paid, tuition_due=tuition_due, expenses_total=expenses_total,
+        salaries_total=salaries_total, activities_cost=activities_cost, net=net,
+        classes_count=classes_count, students_count=students_count, staff_count=staff_count,
+    )
+
+
+@app.route("/owner/classes", methods=["GET", "POST"])
+@login_required
+def owner_classes():
+    if not require_owner():
+        return redirect(url_for("owner_login"))
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        if name:
+            db.session.add(SchoolClass(nursery_id=current_user.nursery_id, name=name))
+            db.session.commit()
+        return redirect(url_for("owner_classes"))
+
+    classes = SchoolClass.query.all()
+    counts = {c.id: Child.query.filter_by(class_id=c.id).count() for c in classes}
+    return render_template("owner_classes.html", classes=classes, counts=counts)
+
+
+@app.route("/owner/classes/<int:class_id>/students", methods=["GET", "POST"])
+@login_required
+def owner_class_students(class_id):
+    if not require_owner():
+        return redirect(url_for("owner_login"))
+
+    school_class = SchoolClass.query.get_or_404(class_id)
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        if name:
+            db.session.add(Child(class_id=class_id, name=name))
+            db.session.commit()
+        return redirect(url_for("owner_class_students", class_id=class_id))
+
+    students = Child.query.filter_by(class_id=class_id).all()
+    return render_template("owner_students.html", school_class=school_class, students=students)
+
+
+@app.route("/owner/activities", methods=["GET", "POST"])
+@login_required
+def owner_activities():
+    if not require_owner():
+        return redirect(url_for("owner_login"))
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        cost = request.form.get("cost") or 0
+        activity_date = request.form.get("date") or None
+        notes = request.form.get("notes", "").strip()
+        if name:
+            db.session.add(Activity(
+                nursery_id=current_user.nursery_id, name=name, cost=cost,
+                date=activity_date or None, notes=notes,
+            ))
+            db.session.commit()
+        return redirect(url_for("owner_activities"))
+
+    activities = Activity.query.order_by(Activity.date.desc()).all()
+    total_cost = sum(float(a.cost) for a in activities)
+    return render_template("owner_activities.html", activities=activities, total_cost=total_cost)
+
+
+@app.route("/owner/staff", methods=["GET", "POST"])
+@login_required
+def owner_staff():
+    if not require_owner():
+        return redirect(url_for("owner_login"))
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        role = request.form.get("role", "").strip()
+        phone = request.form.get("phone", "").strip()
+        salary = request.form.get("monthly_salary") or 0
+        if name:
+            db.session.add(Employee(
+                nursery_id=current_user.nursery_id, name=name, role=role,
+                phone=phone, monthly_salary=salary, hire_date=date.today(),
+            ))
+            db.session.commit()
+        return redirect(url_for("owner_staff"))
+
+    employees = Employee.query.filter_by(active=True).all()
+    today = date.today()
+    paid_status = {
+        sp.employee_id: sp.paid for sp in
+        SalaryPayment.query.filter_by(month=today.month, year=today.year).all()
+    }
+    return render_template("owner_staff.html", employees=employees, paid_status=paid_status, today=today)
+
+
+@app.route("/owner/staff/<int:employee_id>/pay-salary", methods=["POST"])
+@login_required
+def owner_pay_salary(employee_id):
+    if not require_owner():
+        return redirect(url_for("owner_login"))
+
+    employee = Employee.query.get_or_404(employee_id)
+    today = date.today()
+    payment = SalaryPayment.query.filter_by(employee_id=employee_id, month=today.month, year=today.year).first()
+    if not payment:
+        payment = SalaryPayment(
+            employee_id=employee_id, month=today.month, year=today.year,
+            amount=employee.monthly_salary,
+        )
+        db.session.add(payment)
+    payment.paid = True
+    payment.paid_date = today
+    db.session.commit()
+    return redirect(url_for("owner_staff"))
+
+
+@app.route("/owner/expenses", methods=["GET", "POST"])
+@login_required
+def owner_expenses():
+    if not require_owner():
+        return redirect(url_for("owner_login"))
+
+    if request.method == "POST":
+        category = request.form.get("category", "").strip()
+        description = request.form.get("description", "").strip()
+        amount = request.form.get("amount") or 0
+        expense_date = request.form.get("date") or date.today().isoformat()
+        if category and float(amount) > 0:
+            db.session.add(Expense(
+                nursery_id=current_user.nursery_id, category=category, description=description,
+                amount=amount, date=expense_date, created_by_owner_id=current_user.id,
+            ))
+            db.session.commit()
+        return redirect(url_for("owner_expenses"))
+
+    expenses = Expense.query.order_by(Expense.date.desc()).all()
+    total = sum(float(e.amount) for e in expenses)
+    return render_template("owner_expenses.html", expenses=expenses, total=total)
+
+
+@app.route("/owner/reports")
+@login_required
+def owner_reports():
+    if not require_owner():
+        return redirect(url_for("owner_login"))
+
+    month = int(request.args.get("month", date.today().month))
+    year = int(request.args.get("year", date.today().year))
+
+    tuition_paid = db.session.query(db.func.coalesce(db.func.sum(Payment.amount), 0)).filter(
+        Payment.month == month, Payment.year == year, Payment.paid.is_(True)
+    ).scalar()
+    tuition_due = db.session.query(db.func.coalesce(db.func.sum(Payment.amount), 0)).filter(
+        Payment.month == month, Payment.year == year, Payment.paid.is_(False)
+    ).scalar()
+
+    expenses = Expense.query.filter(
+        db.extract("month", Expense.date) == month, db.extract("year", Expense.date) == year
+    ).all()
+    expenses_by_category = {}
+    for e in expenses:
+        expenses_by_category[e.category] = expenses_by_category.get(e.category, 0) + float(e.amount)
+    expenses_total = sum(expenses_by_category.values())
+
+    salaries_total = db.session.query(db.func.coalesce(db.func.sum(SalaryPayment.amount), 0)).filter(
+        SalaryPayment.month == month, SalaryPayment.year == year, SalaryPayment.paid.is_(True)
+    ).scalar()
+
+    activities = Activity.query.filter(
+        db.extract("month", Activity.date) == month, db.extract("year", Activity.date) == year
+    ).all()
+    activities_cost = sum(float(a.cost) for a in activities)
+
+    net = float(tuition_paid) - expenses_total - float(salaries_total) - activities_cost
+
+    return render_template(
+        "owner_reports.html", month=month, year=year,
+        tuition_paid=tuition_paid, tuition_due=tuition_due,
+        expenses_by_category=expenses_by_category, expenses_total=expenses_total,
+        salaries_total=salaries_total, activities_cost=activities_cost, net=net,
+    )
+
+
+# ---------------------------------------------------------------------------
 # CLI helper: seed demo data
 # ---------------------------------------------------------------------------
 
@@ -406,6 +650,10 @@ def seed():
     db.session.flush()
 
     db.session.add(ParentChild(parent_id=parent.id, child_id=child.id))
+
+    owner = Owner(nursery_id=nursery.id, name="مالكة الحضانة", phone="01000000009")
+    owner.set_password("owner123")
+    db.session.add(owner)
 
     db.session.add(DailyLog(
         child_id=child.id, date=date.today(),
