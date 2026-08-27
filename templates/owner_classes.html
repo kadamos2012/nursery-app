@@ -1,32 +1,32 @@
 {% extends "owner_base.html" %}
-{% block header_title %}الفصول{% endblock %}
+{% block header_title %}{{ t('nav_classes') }}{% endblock %}
 {% set active = "classes" %}
 {% block content %}
 <div class="card">
-  <h2>إضافة فصل جديد</h2>
+  <h2>{{ t('add_new_class') }}</h2>
   <form class="inline" method="POST">
-    <input type="text" name="name" placeholder="اسم الفصل، مثال: الفراشات" required>
-    <button type="submit" class="primary">إضافة الفصل</button>
+    <input type="text" name="name" placeholder="{{ t('class_name_placeholder') }}" required>
+    <button type="submit" class="primary">{{ t('add_class') }}</button>
   </form>
 </div>
 
 <div class="card">
-  <h2>كل الفصول ({{ classes|length }})</h2>
+  <h2>{{ t('all_classes') }} ({{ classes|length }})</h2>
   <table>
-    <thead><tr><th>اسم الفصل</th><th>عدد الطلبة</th><th></th></tr></thead>
+    <thead><tr><th>{{ t('class_name') }}</th><th>{{ t('students_count_label') }}</th><th></th></tr></thead>
     <tbody>
       {% for c in classes %}
       <tr>
         <td>{{ c.name }}</td>
         <td>{{ counts[c.id] }}</td>
         <td>
-          <a class="row-link" href="{{ url_for('owner_class_students', class_id=c.id) }}">إدارة الطلبة ←</a>
+          <a class="row-link" href="{{ url_for('owner_class_students', class_id=c.id) }}">{{ t('manage_students') }}</a>
           <br>
-          <a class="row-link" style="font-size: 11px;" href="{{ url_for('owner_class_schedule', class_id=c.id) }}">الجدول الأسبوعي ←</a>
+          <a class="row-link" style="font-size: 11px;" href="{{ url_for('owner_class_schedule', class_id=c.id) }}">{{ t('weekly_schedule_link') }}</a>
           <br>
-          <a class="row-link" style="font-size: 11px;" href="{{ url_for('owner_class_pricing', class_id=c.id) }}">التسعير ←</a>
+          <a class="row-link" style="font-size: 11px;" href="{{ url_for('owner_class_pricing', class_id=c.id) }}">{{ t('pricing_link') }}</a>
           <br>
-          <a class="row-link" style="font-size: 11px;" href="{{ url_for('owner_class_photos', class_id=c.id) }}">صور الفصل ←</a>
+          <a class="row-link" style="font-size: 11px;" href="{{ url_for('owner_class_photos', class_id=c.id) }}">{{ t('class_photos_link') }}</a>
         </td>
       </tr>
       {% endfor %}

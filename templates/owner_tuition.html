@@ -1,9 +1,9 @@
 {% extends "owner_base.html" %}
-{% block header_title %}تحصيل المصروفات الدراسية — {{ month }}/{{ year }}{% endblock %}
+{% block header_title %}{{ t('nav_tuition') }} — {{ month }}/{{ year }}{% endblock %}
 {% set active = "tuition" %}
 {% block content %}
 <div class="card">
-  <h2>اختاري الشهر</h2>
+  <h2>{{ t('choose_month') }}</h2>
   <form class="inline" method="GET" style="flex-direction: row; gap: 8px;">
     <select name="month">
       {% for m in range(1, 13) %}
@@ -11,24 +11,24 @@
       {% endfor %}
     </select>
     <input type="number" name="year" value="{{ year }}" style="width: 90px;">
-    <button type="submit" class="primary" style="width: auto; padding: 11px 16px;">عرض</button>
+    <button type="submit" class="primary" style="width: auto; padding: 11px 16px;">{{ t('show') }}</button>
   </form>
 </div>
 
 <div class="card">
-  <h2>الطلبة ({{ rows|length }})</h2>
+  <h2>{{ t('students_paren') }} ({{ rows|length }})</h2>
   <table>
-    <thead><tr><th>الطفل</th><th>المستحق</th><th>الحالة</th><th></th></tr></thead>
+    <thead><tr><th>{{ t('child_name_placeholder') }}</th><th>{{ t('expected_amount') }}</th><th>{{ t('status') }}</th><th></th></tr></thead>
     <tbody>
       {% for row in rows %}
       <tr>
         <td>{{ row.child.name }}</td>
-        <td>{{ "%.0f"|format(row.expected) }} ج</td>
+        <td>{{ "%.0f"|format(row.expected) }} {{ 'EGP' if lang == 'en' else 'ج' }}</td>
         <td>
           {% if row.payment and row.payment.paid %}
-            <span class="badge paid">مدفوع ({{ row.payment.payment_method.name if row.payment.payment_method else '—' }})</span>
+            <span class="badge paid">{{ t('paid_with') }} ({{ row.payment.payment_method.name if row.payment.payment_method else '—' }})</span>
           {% else %}
-            <span class="badge due">لسه</span>
+            <span class="badge due">{{ t('still_due') }}</span>
           {% endif %}
         </td>
         <td>
@@ -37,12 +37,12 @@
             <input type="hidden" name="child_id" value="{{ row.child.id }}">
             <input type="number" step="0.01" name="amount" value="{{ row.expected }}" style="width: 90px; padding: 6px 8px; font-size: 12px;">
             <select name="payment_method_id" style="padding: 6px 8px; font-size: 12px;" required>
-              <option value="">طريقة التحصيل</option>
+              <option value="">{{ t('collection_method') }}</option>
               {% for m in methods %}
                 <option value="{{ m.id }}">{{ m.name }}</option>
               {% endfor %}
             </select>
-            <button type="submit" class="badge due" style="border:none;cursor:pointer;">تحصيل</button>
+            <button type="submit" class="badge due" style="border:none;cursor:pointer;">{{ t('collect') }}</button>
           </form>
           {% endif %}
         </td>
@@ -53,7 +53,7 @@
 </div>
 {% if not methods %}
 <div class="card" style="background:#FBEBCB;">
-  <p style="font-size: 13px; margin: 0;">محتاجة تضيفي طرق تحصيل الأول من <a class="row-link" href="{{ url_for('owner_payment_methods') }}">هنا ←</a></p>
+  <p style="font-size: 13px; margin: 0;">{{ t('need_methods_first') }} <a class="row-link" href="{{ url_for('owner_payment_methods') }}">{{ t('here_link') }}</a></p>
 </div>
 {% endif %}
 {% endblock %}

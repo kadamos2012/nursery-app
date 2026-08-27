@@ -1,35 +1,35 @@
 {% extends "owner_base.html" %}
-{% block header_title %}المصروفات العامة{% endblock %}
+{% block header_title %}{{ t('nav_expenses') }}{% endblock %}
 {% set active = "expenses" %}
 {% block content %}
-<a class="row-link" href="{{ url_for('owner_expense_categories') }}">إدارة بنود المصروف ←</a>
+<a class="row-link" href="{{ url_for('owner_expense_categories') }}">{{ t('manage_expense_items') }}</a>
 
 <div class="card" style="margin-top: 14px;">
-  <h2>تسجيل مصروف جديد</h2>
+  <h2>{{ t('record_new_expense') }}</h2>
   <form class="inline" method="POST">
     <select name="category" required>
-      <option value="">اختاري نوع المصروف</option>
+      <option value="">{{ t('choose_expense_type') }}</option>
       {% for c in categories %}
         <option value="{{ c.name }}">{{ c.name }}</option>
       {% endfor %}
     </select>
-    <input type="text" name="description" placeholder="وصف المصروف (اختياري)">
-    <input type="number" step="0.01" name="amount" placeholder="المبلغ بالجنيه" required>
+    <input type="text" name="description" placeholder="{{ t('expense_desc_placeholder') }}">
+    <input type="number" step="0.01" name="amount" placeholder="{{ t('amount_egp_placeholder') }}" required>
     <input type="date" name="date">
     <select name="payment_method_id">
-      <option value="">طريقة الصرف (اختياري)</option>
+      <option value="">{{ t('disbursement_method_optional') }}</option>
       {% for m in methods %}
         <option value="{{ m.id }}">{{ m.name }}</option>
       {% endfor %}
     </select>
-    <button type="submit" class="primary">تسجيل المصروف</button>
+    <button type="submit" class="primary">{{ t('record_expense_btn') }}</button>
   </form>
 </div>
 
 <div class="card">
-  <h2>كل المصروفات — إجمالي: {{ "%.0f"|format(total) }} ج</h2>
+  <h2>{{ t('all_expenses_total') }}: {{ "%.0f"|format(total) }} {{ 'EGP' if lang == 'en' else 'ج' }}</h2>
   <table>
-    <thead><tr><th>النوع</th><th>الوصف</th><th>التاريخ</th><th>الطريقة</th><th>المبلغ</th></tr></thead>
+    <thead><tr><th>{{ t('type') }}</th><th>{{ t('description') }}</th><th>{{ t('date') }}</th><th>{{ t('method') }}</th><th>{{ t('amount') }}</th></tr></thead>
     <tbody>
       {% for e in expenses %}
       <tr>
@@ -37,7 +37,7 @@
         <td>{{ e.description or '—' }}</td>
         <td>{{ e.date.strftime('%d/%m/%Y') }}</td>
         <td>{{ e.payment_method.name if e.payment_method else '—' }}</td>
-        <td>{{ "%.0f"|format(e.amount) }} ج</td>
+        <td>{{ "%.0f"|format(e.amount) }} {{ 'EGP' if lang == 'en' else 'ج' }}</td>
       </tr>
       {% endfor %}
     </tbody>

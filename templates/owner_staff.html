@@ -1,51 +1,51 @@
 {% extends "owner_base.html" %}
-{% block header_title %}الموظفين والمرتبات{% endblock %}
+{% block header_title %}{{ t('nav_staff') }}{% endblock %}
 {% set active = "staff" %}
 {% block content %}
 <div class="card">
-  <h2>إضافة موظف جديد</h2>
+  <h2>{{ t('add_new_employee') }}</h2>
   <form class="inline" method="POST">
-    <input type="text" name="name" placeholder="اسم الموظف" required>
-    <input type="text" name="role" placeholder="الوظيفة، مثال: معلمة">
-    <input type="tel" name="phone" placeholder="رقم الهاتف">
-    <input type="number" step="0.01" name="monthly_salary" placeholder="المرتب الشهري" required>
-    <button type="submit" class="primary">إضافة الموظف</button>
+    <input type="text" name="name" placeholder="{{ t('employee_name_placeholder') }}" required>
+    <input type="text" name="role" placeholder="{{ t('role_placeholder') }}">
+    <input type="tel" name="phone" placeholder="{{ t('phone_short') }}">
+    <input type="number" step="0.01" name="monthly_salary" placeholder="{{ t('monthly_salary_placeholder') }}" required>
+    <button type="submit" class="primary">{{ t('add_employee') }}</button>
   </form>
 </div>
 
 <div class="card">
-  <h2>الموظفين ({{ employees|length }}) — مرتبات {{ today.month }}/{{ today.year }}</h2>
+  <h2>{{ t('employees_salaries') }} ({{ employees|length }}) — {{ t('salaries_for') }} {{ today.month }}/{{ today.year }}</h2>
   <table>
-    <thead><tr><th>الاسم</th><th>الوظيفة</th><th>المرتب</th><th>سلف مستحقة</th><th>الصافي</th><th>حالة الصرف</th><th></th></tr></thead>
+    <thead><tr><th>{{ t('name') }}</th><th>{{ t('role') }}</th><th>{{ t('salary') }}</th><th>{{ t('outstanding_advances') }}</th><th>{{ t('net') }}</th><th>{{ t('payment_status') }}</th><th></th></tr></thead>
     <tbody>
       {% for e in employees %}
       {% set adv = advances_by_employee.get(e.id, {"items": [], "total": 0}) %}
       <tr>
         <td>{{ e.name }}</td>
         <td>{{ e.role or '—' }}</td>
-        <td>{{ "%.0f"|format(e.monthly_salary) }} ج <br><a class="row-link" style="font-size:10.5px;" href="{{ url_for('owner_salary_history', employee_id=e.id) }}">السجل ←</a></td>
+        <td>{{ "%.0f"|format(e.monthly_salary) }} {{ 'EGP' if lang == 'en' else 'ج' }} <br><a class="row-link" style="font-size:10.5px;" href="{{ url_for('owner_salary_history', employee_id=e.id) }}">{{ t('record_history') }}</a></td>
         <td>
           {% if adv.total > 0 %}
-            <span style="color:#B23A22;">{{ "%.0f"|format(adv.total) }} ج</span>
+            <span style="color:#B23A22;">{{ "%.0f"|format(adv.total) }} {{ 'EGP' if lang == 'en' else 'ج' }}</span>
           {% else %}—{% endif %}
         </td>
-        <td style="font-weight:700;">{{ "%.0f"|format(e.monthly_salary - adv.total) }} ج</td>
+        <td style="font-weight:700;">{{ "%.0f"|format(e.monthly_salary - adv.total) }} {{ 'EGP' if lang == 'en' else 'ج' }}</td>
         <td style="font-size: 10.5px;">
-          <a class="row-link" href="{{ url_for('owner_staff_credentials', employee_id=e.id) }}">شهادات ←</a>
-          <br><a class="row-link" href="{{ url_for('owner_staff_timeclock', employee_id=e.id) }}">بصمة الحضور ←</a>
+          <a class="row-link" href="{{ url_for('owner_staff_credentials', employee_id=e.id) }}">{{ t('credentials_link') }}</a>
+          <br><a class="row-link" href="{{ url_for('owner_staff_timeclock', employee_id=e.id) }}">{{ t('timeclock_link') }}</a>
         </td>
         <td>
           {% if paid_status.get(e.id) %}
-            <span class="badge paid">اتصرف</span>
+            <span class="badge paid">{{ t('paid_status') }}</span>
           {% else %}
             <form method="POST" action="{{ url_for('owner_pay_salary', employee_id=e.id) }}" style="display:flex; gap:6px; align-items:center;">
               <select name="payment_method_id" style="padding: 6px 8px; font-size: 11.5px;" required>
-                <option value="">الطريقة</option>
+                <option value="">{{ t('method') }}</option>
                 {% for m in methods %}
                   <option value="{{ m.id }}">{{ m.name }}</option>
                 {% endfor %}
               </select>
-              <button type="submit" class="badge due" style="border:none;cursor:pointer;">اصرف</button>
+              <button type="submit" class="badge due" style="border:none;cursor:pointer;">{{ t('disburse') }}</button>
             </form>
           {% endif %}
         </td>
@@ -56,18 +56,18 @@
 </div>
 
 <div class="card">
-  <h2>تسجيل سلفة لموظف</h2>
+  <h2>{{ t('record_advance') }}</h2>
   <form class="inline" id="advance-form" method="POST">
     <select name="employee_select" onchange="document.getElementById('advance-form').action='/owner/staff/' + this.value + '/advance'" required>
-      <option value="">اختاري الموظف</option>
+      <option value="">{{ t('select_employee') }}</option>
       {% for e in employees %}
         <option value="{{ e.id }}">{{ e.name }}</option>
       {% endfor %}
     </select>
-    <input type="number" step="0.01" name="amount" placeholder="مبلغ السلفة" required>
-    <input type="text" name="note" placeholder="ملاحظة (اختياري)">
-    <button type="submit" class="primary">تسجيل السلفة</button>
+    <input type="number" step="0.01" name="amount" placeholder="{{ t('advance_amount_placeholder') }}" required>
+    <input type="text" name="note" placeholder="{{ t('note_optional') }}">
+    <button type="submit" class="primary">{{ t('record_advance_btn') }}</button>
   </form>
-  <p style="font-size: 11px; color: #5B6B5E; margin-top: 8px;">السلفة بتتخصم تلقائي من مرتب الموظف أول ما تصرفيله مرتبه</p>
+  <p style="font-size: 11px; color: #5B6B5E; margin-top: 8px;">{{ t('advance_note') }}</p>
 </div>
 {% endblock %}

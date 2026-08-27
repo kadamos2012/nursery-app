@@ -1,41 +1,41 @@
 {% extends "owner_base.html" %}
-{% block header_title %}نظرة عامة — {{ month }}/{{ year }}{% endblock %}
+{% block header_title %}{{ t('nav_overview') }} — {{ month }}/{{ year }}{% endblock %}
 {% set active = "dashboard" %}
 {% block content %}
 <div class="card">
-  <h2>الملخص المالي لهذا الشهر</h2>
+  <h2>{{ t('financial_summary_month') }}</h2>
   <div class="stat-grid">
     <div class="stat">
-      <div class="label">إيراد المصروفات الدراسية (المحصّل)</div>
-      <div class="value">{{ "%.0f"|format(tuition_paid) }} ج</div>
+      <div class="label">{{ t('tuition_collected') }}</div>
+      <div class="value">{{ "%.0f"|format(tuition_paid) }} {{ 'EGP' if lang == 'en' else 'ج' }}</div>
     </div>
     <div class="stat honey">
-      <div class="label">مستحق ولسه ما اتحصلش</div>
-      <div class="value">{{ "%.0f"|format(tuition_due) }} ج</div>
+      <div class="label">{{ t('due_not_collected') }}</div>
+      <div class="value">{{ "%.0f"|format(tuition_due) }} {{ 'EGP' if lang == 'en' else 'ج' }}</div>
     </div>
     <div class="stat expense">
-      <div class="label">المصروفات العامة</div>
-      <div class="value">{{ "%.0f"|format(expenses_total) }} ج</div>
+      <div class="label">{{ t('general_expenses') }}</div>
+      <div class="value">{{ "%.0f"|format(expenses_total) }} {{ 'EGP' if lang == 'en' else 'ج' }}</div>
     </div>
     <div class="stat expense">
-      <div class="label">مرتبات مدفوعة</div>
-      <div class="value">{{ "%.0f"|format(salaries_total) }} ج</div>
+      <div class="label">{{ t('salaries_paid') }}</div>
+      <div class="value">{{ "%.0f"|format(salaries_total) }} {{ 'EGP' if lang == 'en' else 'ج' }}</div>
     </div>
   </div>
   <div style="margin-top: 14px; padding: 14px; border-radius: 12px; background: {{ 'rgb(220,234,227)' if net >= 0 else 'rgb(248,223,217)' }};">
-    <div style="font-size: 12px; color: #5B6B5E;">صافي الربح هذا الشهر (بعد المصروفات والمرتبات وتكلفة الأنشطة)</div>
+    <div style="font-size: 12px; color: #5B6B5E;">{{ t('net_profit_month') }}</div>
     <div style="font-family: 'Cairo', sans-serif; font-weight: 800; font-size: 22px; margin-top: 4px; color: {{ '#2F5D50' if net >= 0 else '#B23A22' }};">
-      {{ "%.0f"|format(net) }} ج
+      {{ "%.0f"|format(net) }} {{ 'EGP' if lang == 'en' else 'ج' }}
     </div>
   </div>
 </div>
 
 <div class="card">
-  <h2>لمحة سريعة</h2>
+  <h2>{{ t('quick_overview') }}</h2>
   <div class="stat-grid">
-    <div class="stat"><div class="label">عدد الفصول</div><div class="value">{{ classes_count }}</div></div>
-    <div class="stat"><div class="label">عدد الطلبة</div><div class="value">{{ students_count }}</div></div>
-    <div class="stat"><div class="label">عدد الموظفين النشطين</div><div class="value">{{ staff_count }}</div></div>
+    <div class="stat"><div class="label">{{ t('classes_count') }}</div><div class="value">{{ classes_count }}</div></div>
+    <div class="stat"><div class="label">{{ t('students_count_label') }}</div><div class="value">{{ students_count }}</div></div>
+    <div class="stat"><div class="label">{{ t('active_staff_count') }}</div><div class="value">{{ staff_count }}</div></div>
   </div>
 </div>
 {% endblock %}

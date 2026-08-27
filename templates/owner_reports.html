@@ -1,11 +1,11 @@
 {% extends "owner_base.html" %}
-{% block header_title %}التقرير المالي — {{ month }}/{{ year }}{% endblock %}
+{% block header_title %}{{ t('nav_reports') }} — {{ month }}/{{ year }}{% endblock %}
 {% set active = "reports" %}
 {% block content %}
-<a class="row-link" href="{{ url_for('owner_reports_export', month=month, year=year) }}">⬇ تحميل التقرير Excel</a>
+<a class="row-link" href="{{ url_for('owner_reports_export', month=month, year=year) }}">{{ t('download_excel_report') }}</a>
 
 <div class="card" style="margin-top: 14px;">
-  <h2>اختاري الشهر</h2>
+  <h2>{{ t('choose_month') }}</h2>
   <form class="inline" method="GET" style="flex-direction: row; gap: 8px;">
     <select name="month">
       {% for m in range(1, 13) %}
@@ -13,39 +13,39 @@
       {% endfor %}
     </select>
     <input type="number" name="year" value="{{ year }}" style="width: 90px;">
-    <button type="submit" class="primary" style="width: auto; padding: 11px 16px;">عرض</button>
+    <button type="submit" class="primary" style="width: auto; padding: 11px 16px;">{{ t('show') }}</button>
   </form>
 </div>
 
 <div class="card">
-  <h2>الإيراد</h2>
+  <h2>{{ t('revenue') }}</h2>
   <table>
-    <tr><td>مصروفات دراسية محصّلة</td><td>{{ "%.0f"|format(tuition_paid) }} ج</td></tr>
-    <tr><td>مصروفات دراسية مستحقة (لسه)</td><td>{{ "%.0f"|format(tuition_due) }} ج</td></tr>
+    <tr><td>{{ t('tuition_collected_row') }}</td><td>{{ "%.0f"|format(tuition_paid) }} {{ 'EGP' if lang == 'en' else 'ج' }}</td></tr>
+    <tr><td>{{ t('tuition_due_row') }}</td><td>{{ "%.0f"|format(tuition_due) }} {{ 'EGP' if lang == 'en' else 'ج' }}</td></tr>
   </table>
 </div>
 
 <div class="card">
-  <h2>المصروفات حسب النوع</h2>
+  <h2>{{ t('expenses_by_type') }}</h2>
   <table>
     {% for cat, amount in expenses_by_category.items() %}
-    <tr><td>{{ cat }}</td><td>{{ "%.0f"|format(amount) }} ج</td></tr>
+    <tr><td>{{ cat }}</td><td>{{ "%.0f"|format(amount) }} {{ 'EGP' if lang == 'en' else 'ج' }}</td></tr>
     {% else %}
-    <tr><td colspan="2">لا توجد مصروفات مسجلة هذا الشهر</td></tr>
+    <tr><td colspan="2">{{ t('no_expenses_month') }}</td></tr>
     {% endfor %}
-    <tr style="font-weight:700;"><td>إجمالي المصروفات العامة</td><td>{{ "%.0f"|format(expenses_total) }} ج</td></tr>
-    <tr><td>مرتبات مدفوعة</td><td>{{ "%.0f"|format(salaries_total) }} ج</td></tr>
-    <tr><td>تكلفة الأنشطة</td><td>{{ "%.0f"|format(activities_cost) }} ج</td></tr>
+    <tr style="font-weight:700;"><td>{{ t('total_general_expenses') }}</td><td>{{ "%.0f"|format(expenses_total) }} {{ 'EGP' if lang == 'en' else 'ج' }}</td></tr>
+    <tr><td>{{ t('salaries_paid') }}</td><td>{{ "%.0f"|format(salaries_total) }} {{ 'EGP' if lang == 'en' else 'ج' }}</td></tr>
+    <tr><td>{{ t('activities_cost_row') }}</td><td>{{ "%.0f"|format(activities_cost) }} {{ 'EGP' if lang == 'en' else 'ج' }}</td></tr>
   </table>
 </div>
 
 <div class="card" style="background: {{ 'rgb(220,234,227)' if net >= 0 else 'rgb(248,223,217)' }};">
-  <h2>صافي الربح</h2>
+  <h2>{{ t('net_profit') }}</h2>
   <div style="font-family: 'Cairo', sans-serif; font-weight: 800; font-size: 26px; color: {{ '#2F5D50' if net >= 0 else '#B23A22' }};">
-    {{ "%.0f"|format(net) }} ج
+    {{ "%.0f"|format(net) }} {{ 'EGP' if lang == 'en' else 'ج' }}
   </div>
   <div style="font-size: 11.5px; color: #5B6B5E; margin-top: 6px;">
-    = الإيراد المحصّل − (المصروفات العامة + المرتبات المدفوعة + تكلفة الأنشطة)
+    {{ t('net_profit_formula') }}
   </div>
 </div>
 {% endblock %}

@@ -1,38 +1,38 @@
 {% extends "owner_base.html" %}
-{% block header_title %}طلبة فصل {{ school_class.name }}{% endblock %}
+{% block header_title %}{{ school_class.name }} — {{ t('students_paren') }}{% endblock %}
 {% set active = "classes" %}
 {% block content %}
-<a class="row-link" href="{{ url_for('owner_classes') }}">← رجوع للفصول</a>
-<a class="row-link" style="display:block; margin-top:6px;" href="{{ url_for('owner_class_pricing', class_id=school_class.id) }}">💰 تسعير فصل {{ school_class.name }} (دوام كامل/جزئي، ساعات إضافية) ←</a>
+<a class="row-link" href="{{ url_for('owner_classes') }}">{{ t('back_to_classes') }}</a>
+<a class="row-link" style="display:block; margin-top:6px;" href="{{ url_for('owner_class_pricing', class_id=school_class.id) }}">💰 {{ t('class_pricing_full', name=school_class.name) }}</a>
 
 <div class="card" style="margin-top: 14px;">
-  <h2>تسجيل طالب جديد في {{ school_class.name }}</h2>
+  <h2>{{ t('register_new_student', name=school_class.name) }}</h2>
   <form class="inline" method="POST">
-    <input type="text" name="name" placeholder="اسم الطفل" required>
-    <label style="font-size: 12px; color: #5B6B5E;">تاريخ الميلاد</label>
+    <input type="text" name="name" placeholder="{{ t('child_name_placeholder') }}" required>
+    <label style="font-size: 12px; color: #5B6B5E;">{{ t('birth_date') }}</label>
     <input type="date" name="birth_date">
 
-    <label style="font-size: 12px; color: #5B6B5E;">نوع الاشتراك (السعر بياخده تلقائي من تسعير الفصل)</label>
+    <label style="font-size: 12px; color: #5B6B5E;">{{ t('subscription_type_auto') }}</label>
     <select name="subscription_type" required>
-      <option value="full_time">دوام كامل (Full time)</option>
-      <option value="part_time">دوام جزئي (Part time)</option>
+      <option value="full_time">{{ t('full_time_option') }}</option>
+      <option value="part_time">{{ t('part_time_option') }}</option>
     </select>
 
-    <button type="submit" class="primary">تسجيل الطالب</button>
+    <button type="submit" class="primary">{{ t('register_student_btn') }}</button>
   </form>
 </div>
 
 <div class="card">
   <h2>
-    {{ 'الطلبة المؤرشفين' if show_archived else 'الطلبة المسجلين' }} ({{ students|length }})
+    {{ t('archived_students') if show_archived else t('registered_students') }} ({{ students|length }})
   </h2>
   {% if show_archived %}
-    <a class="row-link" href="{{ url_for('owner_class_students', class_id=school_class.id) }}">← رجوع للطلبة النشطين</a>
+    <a class="row-link" href="{{ url_for('owner_class_students', class_id=school_class.id) }}">{{ t('back_to_active_students') }}</a>
   {% else %}
-    <a class="row-link" href="{{ url_for('owner_class_students', class_id=school_class.id, archived=1) }}">عرض الطلبة المؤرشفين ←</a>
+    <a class="row-link" href="{{ url_for('owner_class_students', class_id=school_class.id, archived=1) }}">{{ t('view_archived_students') }}</a>
   {% endif %}
   <table style="margin-top: 10px;">
-    <thead><tr><th>الاسم</th><th>السن</th><th>نوع الاشتراك</th><th>الاشتراك الأساسي</th><th>إضافي</th><th>الإجمالي</th><th></th></tr></thead>
+    <thead><tr><th>{{ t('name') }}</th><th>{{ t('age') }}</th><th>{{ 'Subscription' if lang=='en' else 'نوع الاشتراك' }}</th><th>{{ t('base_subscription') }}</th><th>{{ t('extra') }}</th><th>{{ t('total') }}</th><th></th></tr></thead>
     <tbody>
       {% for s in students %}
       <tr>
@@ -41,33 +41,33 @@
           <div style="font-size:11px;color:#5B6B5E;margin-top:2px;">
             {% set plist = parents_by_child.get(s.id, []) %}
             {% if plist %}{% for p in plist %}{{ p.name }}{% if not loop.last %}، {% endif %}{% endfor %}
-            {% else %}<span style="color:#B23A22;">مفيش ولي أمر مربوط</span>{% endif %}
+            {% else %}<span style="color:#B23A22;">{{ t('no_parent_linked') }}</span>{% endif %}
           </div>
         </td>
         <td>
           {% if s.birth_date %}
             {% set age_days = (today - s.birth_date).days %}
-            {{ (age_days / 365.25) | int }} سنة
+            {{ (age_days / 365.25) | int }} {{ t('years_old') }}
           {% else %}—{% endif %}
         </td>
         <td>
-          {{ 'دوام كامل' if s.subscription_type == 'full_time' else 'دوام جزئي' }}
+          {{ t('full_time') if s.subscription_type == 'full_time' else t('part_time') }}
           {% if s.subscription_type == 'part_time' %}
-            <div style="font-size:10.5px; color:#5B6B5E;">أيام مستخدمة: {{ part_time_days_used.get(s.id, 0) }} / {{ school_class.part_time_max_days }}</div>
+            <div style="font-size:10.5px; color:#5B6B5E;">{{ t('days_used') }}: {{ part_time_days_used.get(s.id, 0) }} / {{ school_class.part_time_max_days }}</div>
           {% endif %}
         </td>
-        <td>{{ "%.0f"|format(base_fee_by_child.get(s.id, 0)) }} ج</td>
+        <td>{{ "%.0f"|format(base_fee_by_child.get(s.id, 0)) }} {{ 'EGP' if lang == 'en' else 'ج' }}</td>
         <td style="font-size: 11.5px;">
           {% set alist = addons_by_child.get(s.id, []) %}
           {% if alist %}{% for a in alist %}{{ a.name }}{% if not loop.last %}، {% endif %}{% endfor %}
           {% else %}—{% endif %}
-          <br><a class="row-link" style="font-size: 11px;" href="{{ url_for('owner_child_addons', child_id=s.id) }}">إدارة ←</a>
+          <br><a class="row-link" style="font-size: 11px;" href="{{ url_for('owner_child_addons', child_id=s.id) }}">{{ t('edit') }} ←</a>
         </td>
         <td style="font-weight: 700;">
-          {{ "%.0f"|format(total_due_by_child.get(s.id, 0)) }} ج
+          {{ "%.0f"|format(total_due_by_child.get(s.id, 0)) }} {{ 'EGP' if lang == 'en' else 'ج' }}
           {% if s.discount_type != 'none' %}
             <div style="font-size:10px;color:#2F5D50;font-weight:400;">
-              خصم {{ s.discount_value|int }}{{ '%' if s.discount_type == 'percent' else ' ج' }}
+              {{ t('discount') }} {{ s.discount_value|int }}{{ '%' if s.discount_type == 'percent' else (' EGP' if lang == 'en' else ' ج') }}
             </div>
           {% endif %}
         </td>
@@ -76,18 +76,18 @@
             <img src="{{ url_for('child_photo', child_id=s.id) }}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
           {% endif %}
           {% if s.medical_notes %}
-            <div style="font-size:10.5px;color:#B23A22;font-weight:700;margin-top:2px;">⚠ يوجد ملاحظة طبية</div>
+            <div style="font-size:10.5px;color:#B23A22;font-weight:700;margin-top:2px;">{{ t('medical_note_exists') }}</div>
           {% endif %}
-          <a class="row-link" style="font-size: 11px;" href="{{ url_for('owner_child_profile', child_id=s.id) }}">الصورة/الطبي ←</a>
-          <br><a class="row-link" style="font-size: 11px;" href="{{ url_for('owner_pickup_people', child_id=s.id) }}">مصرح لهم بالاستلام ←</a>
+          <a class="row-link" style="font-size: 11px;" href="{{ url_for('owner_child_profile', child_id=s.id) }}">{{ t('photo_medical_link') }}</a>
+          <br><a class="row-link" style="font-size: 11px;" href="{{ url_for('owner_pickup_people', child_id=s.id) }}">{{ t('authorized_pickup_link') }}</a>
           <form method="POST" action="{{ url_for('owner_add_child_task', child_id=s.id) }}" style="margin-top: 6px; display:flex; gap:4px;">
-            <input type="text" name="title" placeholder="موعد دوا/مهمة" style="font-size:10.5px; padding:4px 6px; width:90px;">
-            <input type="text" name="time_label" placeholder="الوقت" style="font-size:10.5px; padding:4px 6px; width:50px;">
-            <button type="submit" style="font-size: 10px; background: #DCEAE3; color:#2F5D50; border: none; border-radius: 8px; padding: 4px 8px; cursor: pointer;">إضافة</button>
+            <input type="text" name="title" placeholder="{{ t('medication_task_placeholder') }}" style="font-size:10.5px; padding:4px 6px; width:90px;">
+            <input type="text" name="time_label" placeholder="{{ t('time_placeholder') }}" style="font-size:10.5px; padding:4px 6px; width:50px;">
+            <button type="submit" style="font-size: 10px; background: #DCEAE3; color:#2F5D50; border: none; border-radius: 8px; padding: 4px 8px; cursor: pointer;">{{ t('add') }}</button>
           </form>
           <form method="POST" action="{{ url_for('owner_toggle_archive', child_id=s.id) }}" style="margin-top: 4px;">
             <button type="submit" style="font-size: 10.5px; background: none; border: 1px solid #E4E9E1; border-radius: 8px; padding: 4px 8px; cursor: pointer; color: {{ '#2F5D50' if show_archived else '#B23A22' }};">
-              {{ 'إلغاء الأرشفة' if show_archived else 'أرشفة' }}
+              {{ t('unarchive') if show_archived else t('archive') }}
             </button>
           </form>
         </td>
