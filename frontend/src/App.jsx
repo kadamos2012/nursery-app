@@ -54,10 +54,20 @@ function Avatar({ size = 44, letter = "؟" }) {
 
 function Spinner({ label }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: 60 }}>
-      <Loader2 className="spin" size={26} color={C.primary} />
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 60 }}>
+      <div className="breathe" style={{
+        width: 44, height: 44, borderRadius: "50%",
+        background: `linear-gradient(135deg, ${C.honey}, ${C.primary})`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <Sun size={20} color="white" />
+      </div>
       <span style={{ fontFamily: bodyFont, fontSize: 13, color: C.inkSoft }}>{label}</span>
-      <style>{`.spin { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        .breathe { animation: breathe 1.6s ease-in-out infinite; }
+        @keyframes breathe { 0%, 100% { transform: scale(0.9); opacity: 0.85; } 50% { transform: scale(1.05); opacity: 1; } }
+        @media (prefers-reduced-motion: reduce) { .breathe { animation: none; } }
+      `}</style>
     </div>
   );
 }
@@ -480,6 +490,7 @@ function TripsCard({ apiFetch, childId }) {
               <button
                 onClick={() => subscribe(t.id)}
                 disabled={busy === t.id}
+                className="press"
                 style={{ marginTop: 8, width: "100%", padding: 10, background: C.primary, color: "white", border: "none", borderRadius: 10, fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, opacity: busy === t.id ? 0.6 : 1 }}
               >
                 {busy === t.id ? "جاري الاشتراك..." : "اشتراك الآن"}
@@ -568,7 +579,14 @@ function LogsTab({ apiFetch, childId }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "16px 14px 90px" }}>
       {error && <ErrorNote message={error} />}
-      {logs.length === 0 && !error && <p style={{ fontFamily: bodyFont, fontSize: 13, color: C.inkSoft, textAlign: "center", marginTop: 40 }}>لسه مفيش سجلات</p>}
+      {logs.length === 0 && !error && (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 50 }}>
+          <BookOpen size={28} color={C.line} />
+          <p style={{ fontFamily: bodyFont, fontSize: 13, color: C.inkSoft, textAlign: "center", margin: 0 }}>
+            هنا هيتجمع سجل يوميات طفلك يوم بيوم
+          </p>
+        </div>
+      )}
       {logs.map((log, i) => (
         <div key={i} style={{ background: C.card, borderRadius: 16, padding: 14, boxShadow: "0 2px 10px rgba(47,93,80,0.05)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -671,7 +689,14 @@ function MessagesTab({ apiFetch, childId }) {
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ flex: 1, overflowY: "auto", padding: "16px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
         {error && <ErrorNote message={error} />}
-        {messages.length === 0 && !error && <p style={{ fontFamily: bodyFont, fontSize: 13, color: C.inkSoft, textAlign: "center", marginTop: 40 }}>لسه مفيش رسائل</p>}
+        {messages.length === 0 && !error && (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 50 }}>
+            <MessageCircle size={28} color={C.line} />
+            <p style={{ fontFamily: bodyFont, fontSize: 13, color: C.inkSoft, textAlign: "center", margin: 0 }}>
+              ابدئي محادثة مع المعلمة من هنا
+            </p>
+          </div>
+        )}
         {messages.map((m, i) => {
           const mine = m.sender_type === "parent";
           return (
@@ -697,7 +722,7 @@ function MessagesTab({ apiFetch, childId }) {
           placeholder="اكتبي رسالتك..."
           style={{ flex: 1, background: C.card, borderRadius: 20, padding: "10px 16px", fontFamily: bodyFont, fontSize: 13, border: "none", color: C.ink }}
         />
-        <button onClick={send} disabled={sending} style={{ width: 40, height: 40, borderRadius: "50%", background: C.primary, border: "none", display: "flex", alignItems: "center", justifyContent: "center", opacity: sending ? 0.6 : 1 }}>
+        <button onClick={send} disabled={sending} className="press" style={{ width: 40, height: 40, borderRadius: "50%", background: C.primary, border: "none", display: "flex", alignItems: "center", justifyContent: "center", opacity: sending ? 0.6 : 1 }}>
           <Send size={16} color="white" />
         </button>
       </div>
@@ -749,7 +774,17 @@ export default function App() {
       display: "flex", flexDirection: "column", position: "relative",
     }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800&family=Tajawal:wght@400;500;700&display=swap');
-        * { box-sizing: border-box; }`}</style>
+        * { box-sizing: border-box; }
+        .tab-fade { animation: tabFadeIn 0.28s ease both; }
+        @keyframes tabFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+        .nav-btn { transition: transform 0.15s ease; }
+        .nav-btn:active { transform: scale(0.92); }
+        .nav-pill { transition: background 0.2s ease, transform 0.2s ease; }
+        .press:active { transform: scale(0.97); }
+        @media (prefers-reduced-motion: reduce) {
+          .tab-fade, .nav-btn, .nav-pill, .press { animation: none !important; transition: none !important; }
+        }
+      `}</style>
 
       {showSettings && <SettingsSheet onClose={() => setShowSettings(false)} notifications={notifications} apiFetch={apiFetch} />}
       {showChildSwitcher && (
@@ -802,23 +837,29 @@ export default function App() {
             {!childId ? (
               <Spinner label="بنجيب بيانات طفلك..." />
             ) : (
-              <>
+              <div key={tab} className="tab-fade" style={{ display: "flex", flexDirection: "column", flex: 1 }}>
                 {tab === "home" && <HomeTab apiFetch={apiFetch} childId={childId} notifications={notifications} medicalNotes={activeChild?.medical_notes} />}
                 {tab === "logs" && <LogsTab apiFetch={apiFetch} childId={childId} />}
                 {tab === "attendance" && <AttendanceTab apiFetch={apiFetch} childId={childId} />}
                 {tab === "messages" && <MessagesTab apiFetch={apiFetch} childId={childId} />}
-              </>
+              </div>
             )}
           </div>
 
-          <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto", background: C.card, borderTop: `1px solid ${C.line}`, display: "flex", padding: "10px 8px calc(env(safe-area-inset-bottom, 10px))" }}>
+          <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto", background: C.card, borderTop: `1px solid ${C.line}`, display: "flex", padding: "8px 8px calc(env(safe-area-inset-bottom, 8px))" }}>
             {TABS.map((t) => {
               const Icon = t.icon;
               const isActive = t.key === tab;
               return (
-                <button key={t.key} onClick={() => setTab(t.key)} style={{ flex: 1, background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 0", cursor: "pointer" }}>
-                  <Icon size={20} color={isActive ? C.primary : C.inkSoft} strokeWidth={isActive ? 2.4 : 1.8} />
-                  <span style={{ fontFamily: bodyFont, fontSize: 10.5, color: isActive ? C.primary : C.inkSoft, fontWeight: isActive ? 700 : 400 }}>{t.label}</span>
+                <button key={t.key} onClick={() => setTab(t.key)} className="nav-btn" style={{ flex: 1, background: "none", border: "none", display: "flex", justifyContent: "center", padding: "4px 2px", cursor: "pointer" }}>
+                  <div className="nav-pill" style={{
+                    display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+                    padding: "6px 14px", borderRadius: 14,
+                    background: isActive ? C.primarySoft : "transparent",
+                  }}>
+                    <Icon size={19} color={isActive ? C.primary : C.inkSoft} strokeWidth={isActive ? 2.4 : 1.8} />
+                    <span style={{ fontFamily: bodyFont, fontSize: 10.5, color: isActive ? C.primary : C.inkSoft, fontWeight: isActive ? 700 : 400 }}>{t.label}</span>
+                  </div>
                 </button>
               );
             })}
