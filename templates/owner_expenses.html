@@ -16,6 +16,12 @@
     <input type="text" name="description" placeholder="وصف المصروف (اختياري)">
     <input type="number" step="0.01" name="amount" placeholder="المبلغ بالجنيه" required>
     <input type="date" name="date">
+    <select name="payment_method_id">
+      <option value="">طريقة الصرف (اختياري)</option>
+      {% for m in methods %}
+        <option value="{{ m.id }}">{{ m.name }}</option>
+      {% endfor %}
+    </select>
     <button type="submit" class="primary">تسجيل المصروف</button>
   </form>
 </div>
@@ -23,13 +29,14 @@
 <div class="card">
   <h2>كل المصروفات — إجمالي: {{ "%.0f"|format(total) }} ج</h2>
   <table>
-    <thead><tr><th>النوع</th><th>الوصف</th><th>التاريخ</th><th>المبلغ</th></tr></thead>
+    <thead><tr><th>النوع</th><th>الوصف</th><th>التاريخ</th><th>الطريقة</th><th>المبلغ</th></tr></thead>
     <tbody>
       {% for e in expenses %}
       <tr>
         <td>{{ e.category }}</td>
         <td>{{ e.description or '—' }}</td>
         <td>{{ e.date.strftime('%d/%m/%Y') }}</td>
+        <td>{{ e.payment_method.name if e.payment_method else '—' }}</td>
         <td>{{ "%.0f"|format(e.amount) }} ج</td>
       </tr>
       {% endfor %}

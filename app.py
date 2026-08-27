@@ -10,7 +10,8 @@ from flask_cors import CORS
 from models import (
     db, Nursery, SchoolClass, Teacher, Parent, Child, ParentChild,
     DailyLog, AttendanceRecord, Payment, Message, PushSubscription,
-    Owner, Employee, SalaryPayment, Expense, Activity, Addon, ChildAddon
+    Owner, Employee, SalaryPayment, Expense, Activity, Addon, ChildAddon,
+    PaymentMethod
 )
 from pywebpush import webpush, WebPushException
 import json as json_lib
@@ -549,7 +550,8 @@ def owner_staff():
         sp.employee_id: sp.paid for sp in
         SalaryPayment.query.filter_by(month=today.month, year=today.year).all()
     }
-    return render_template("owner_staff.html", employees=employees, paid_status=paid_status, today=today)
+    methods = PaymentMethod.query.filter_by(active=True).all()
+    return render_template("owner_staff.html", employees=employees, paid_status=paid_status, today=today, methods=methods)
 
 
 @app.route("/owner/staff/<int:employee_id>/pay-salary", methods=["POST"])
@@ -560,6 +562,7 @@ def owner_pay_salary(employee_id):
 
     employee = Employee.query.get_or_404(employee_id)
     today = date.today()
+    method_id = request.form.get("payment_method_id") or None
     payment = SalaryPayment.query.filter_by(employee_id=employee_id, month=today.month, year=today.year).first()
     if not payment:
         payment = SalaryPayment(
@@ -569,6 +572,7 @@ def owner_pay_salary(employee_id):
         db.session.add(payment)
     payment.paid = True
     payment.paid_date = today
+    payment.payment_method_id = method_id
     db.session.commit()
     return redirect(url_for("owner_staff"))
 
@@ -716,6 +720,67 @@ def child_photo(child_id):
     return app.response_class(raw, mimetype=child.photo_mime or "image/jpeg")
 
 
+@app.route("/owner/payment-methods", methods=["GET", "POST"])
+@login_required
+def owner_payment_methods():
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        if name:
+            db.session.add(PaymentMethod(nursery_id=current_user.nursery_id, name=name))
+            db.session.commit()
+        return redirect(url_for("owner_payment_methods"))
+
+    methods = PaymentMethod.query.filter_by(active=True).all()
+    return render_template("owner_payment_methods.html", methods=methods)
+
+
+@app.route("/owner/tuition", methods=["GET", "POST"])
+@login_required
+def owner_tuition():
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    month = int(request.args.get("month", date.today().month))
+    year = int(request.args.get("year", date.today().year))
+
+    if request.method == "POST":
+        child_id = int(request.form.get("child_id"))
+        amount = request.form.get("amount")
+        method_id = request.form.get("payment_method_id") or None
+
+        payment = Payment.query.filter_by(child_id=child_id, month=month, year=year).first()
+        if not payment:
+            payment = Payment(child_id=child_id, month=month, year=year, amount=amount)
+            db.session.add(payment)
+        payment.amount = amount
+        payment.paid = True
+        payment.paid_date = date.today()
+        payment.payment_method_id = method_id
+        db.session.commit()
+        return redirect(url_for("owner_tuition", month=month, year=year))
+
+    children = Child.query.all()
+    existing_payments = {
+        p.child_id: p for p in Payment.query.filter_by(month=month, year=year).all()
+    }
+    methods = PaymentMethod.query.filter_by(active=True).all()
+
+    rows = []
+    for c in children:
+        addons_total = sum(float(ca.addon.monthly_fee) for ca in ChildAddon.query.filter_by(child_id=c.id).all())
+        expected = float(c.monthly_fee) + addons_total
+        rows.append({
+            "child": c,
+            "expected": expected,
+            "payment": existing_payments.get(c.id),
+        })
+
+    return render_template("owner_tuition.html", rows=rows, methods=methods, month=month, year=year)
+
+
 @app.route("/owner/expenses", methods=["GET", "POST"])
 @login_required
 def owner_expenses():
@@ -727,17 +792,20 @@ def owner_expenses():
         description = request.form.get("description", "").strip()
         amount = request.form.get("amount") or 0
         expense_date = request.form.get("date") or date.today().isoformat()
+        method_id = request.form.get("payment_method_id") or None
         if category and float(amount) > 0:
             db.session.add(Expense(
                 nursery_id=current_user.nursery_id, category=category, description=description,
                 amount=amount, date=expense_date, created_by_owner_id=current_user.id,
+                payment_method_id=method_id,
             ))
             db.session.commit()
         return redirect(url_for("owner_expenses"))
 
     expenses = Expense.query.order_by(Expense.date.desc()).all()
     total = sum(float(e.amount) for e in expenses)
-    return render_template("owner_expenses.html", expenses=expenses, total=total)
+    methods = PaymentMethod.query.filter_by(active=True).all()
+    return render_template("owner_expenses.html", expenses=expenses, total=total, methods=methods)
 
 
 @app.route("/owner/reports")

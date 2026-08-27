@@ -1,0 +1,27 @@
+{% extends "owner_base.html" %}
+{% block header_title %}طرق التحصيل والصرف{% endblock %}
+{% set active = "methods" %}
+{% block content %}
+<div class="card">
+  <h2>إضافة طريقة جديدة</h2>
+  <p style="font-size: 12px; color: #5B6B5E; margin-top: -4px;">مثال: نقدي، تحويل بنكي، فودافون كاش، إنستاباي</p>
+  <form class="inline" method="POST">
+    <input type="text" name="name" placeholder="اسم الطريقة" required>
+    <button type="submit" class="primary">إضافة</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>الطرق المتاحة</h2>
+  <table>
+    <thead><tr><th>الاسم</th></tr></thead>
+    <tbody>
+      {% for m in methods %}
+      <tr><td>{{ m.name }}</td></tr>
+      {% else %}
+      <tr><td>لسه مفيش طرق مسجلة</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

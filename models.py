@@ -116,6 +116,14 @@ class AttendanceRecord(db.Model):
     __table_args__ = (db.UniqueConstraint("child_id", "date", name="uq_attendance_child_date"),)
 
 
+class PaymentMethod(db.Model):
+    """Catalog of collection/disbursement methods (cash, bank transfer, mobile wallet, etc.)."""
+    id = db.Column(db.Integer, primary_key=True)
+    nursery_id = db.Column(db.Integer, db.ForeignKey("nursery.id"), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    active = db.Column(db.Boolean, default=True)
+
+
 class Payment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     child_id = db.Column(db.Integer, db.ForeignKey("child.id"), nullable=False)
@@ -124,6 +132,9 @@ class Payment(db.Model):
     amount = db.Column(db.Numeric(10, 2), nullable=False)
     paid = db.Column(db.Boolean, default=False)
     paid_date = db.Column(db.Date, nullable=True)
+    payment_method_id = db.Column(db.Integer, db.ForeignKey("payment_method.id"), nullable=True)
+
+    payment_method = db.relationship("PaymentMethod", foreign_keys=[payment_method_id])
 
 
 class Message(db.Model):
@@ -187,6 +198,9 @@ class SalaryPayment(db.Model):
     amount = db.Column(db.Numeric(10, 2), nullable=False)
     paid = db.Column(db.Boolean, default=False)
     paid_date = db.Column(db.Date, nullable=True)
+    payment_method_id = db.Column(db.Integer, db.ForeignKey("payment_method.id"), nullable=True)
+
+    payment_method = db.relationship("PaymentMethod", foreign_keys=[payment_method_id])
 
     __table_args__ = (db.UniqueConstraint("employee_id", "month", "year", name="uq_salary_emp_month_year"),)
 
@@ -200,6 +214,9 @@ class Expense(db.Model):
     amount = db.Column(db.Numeric(10, 2), nullable=False)
     date = db.Column(db.Date, nullable=False, default=date.today)
     created_by_owner_id = db.Column(db.Integer, db.ForeignKey("owner.id"), nullable=True)
+    payment_method_id = db.Column(db.Integer, db.ForeignKey("payment_method.id"), nullable=True)
+
+    payment_method = db.relationship("PaymentMethod", foreign_keys=[payment_method_id])
 
 
 class Activity(db.Model):
