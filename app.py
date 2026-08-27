@@ -15,7 +15,7 @@ from models import (
     Trip, TripCostItem, TripClass, TripRegistration,
     EnrollmentRequest, ClassPhoto, SpecialRequest, TeacherClass, WeeklyScheduleItem,
     DailyTask, SalaryHistory, FeeHistory, PickupPerson, StaffCredential, StaffTimeClock,
-    DevelopmentalMilestone
+    DevelopmentalMilestone, PhotoTag
 )
 from pywebpush import webpush, WebPushException
 import json as json_lib
@@ -527,11 +527,13 @@ def child_class_photos(child_id):
         return jsonify({"error": "غير مصرح"}), 403
 
     child = Child.query.get_or_404(child_id)
-    photos = ClassPhoto.query.filter_by(class_id=child.class_id).order_by(ClassPhoto.created_at.desc()).limit(20).all()
+    photos = ClassPhoto.query.filter_by(class_id=child.class_id).order_by(ClassPhoto.created_at.desc()).limit(60).all()
+    visible = [p for p in photos if (not p.tags) or any(t.child_id == child_id for t in p.tags)]
+    visible = visible[:20]
     return jsonify([{
         "id": p.id, "url": url_for("serve_class_photo", photo_id=p.id, _external=True),
         "caption": p.caption, "created_at": p.created_at.isoformat(),
-    } for p in photos])
+    } for p in visible])
 
 
 @app.route("/api/child/<int:child_id>/special-requests", methods=["GET", "POST"])
@@ -749,20 +751,30 @@ def teacher_class_photos():
         photo_file = request.files.get("photo")
         caption = request.form.get("caption", "").strip()
         upload_class_id = request.form.get("class_id", type=int) or selected_class_id
+        tagged_child_ids = request.form.getlist("child_ids")
         if photo_file and photo_file.filename and upload_class_id in class_ids:
             raw = photo_file.read()
             if len(raw) <= 3 * 1024 * 1024:
-                db.session.add(ClassPhoto(
+                photo = ClassPhoto(
                     class_id=upload_class_id, photo_data=base64.b64encode(raw).decode("ascii"),
                     photo_mime=photo_file.mimetype or "image/jpeg", caption=caption,
                     uploaded_by_teacher_id=current_user.id,
-                ))
+                )
+                db.session.add(photo)
+                db.session.flush()
+                for cid in tagged_child_ids:
+                    db.session.add(PhotoTag(photo_id=photo.id, child_id=int(cid)))
                 db.session.commit()
         return redirect(url_for("teacher_class_photos", class_id=upload_class_id))
 
     photos = ClassPhoto.query.filter_by(class_id=selected_class_id).order_by(ClassPhoto.created_at.desc()).all() if selected_class_id else []
     classes = [SchoolClass.query.get(cid) for cid in class_ids]
-    return render_template("teacher_photos.html", photos=photos, classes=classes, selected_class_id=selected_class_id)
+    class_children = Child.query.filter_by(class_id=selected_class_id, archived=False).all() if selected_class_id else []
+    tags_by_photo = {p.id: {t.child_id for t in p.tags} for p in photos}
+    return render_template(
+        "teacher_photos.html", photos=photos, classes=classes, selected_class_id=selected_class_id,
+        class_children=class_children, tags_by_photo=tags_by_photo,
+    )
 
 
 @app.route("/class-photo/<int:photo_id>")

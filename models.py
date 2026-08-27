@@ -385,6 +385,17 @@ class EnrollmentRequest(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class PhotoTag(db.Model):
+    """Which children appear in a class photo, tagged manually by the teacher
+    (no facial recognition — avoids processing biometric data of children)."""
+    id = db.Column(db.Integer, primary_key=True)
+    photo_id = db.Column(db.Integer, db.ForeignKey("class_photo.id"), nullable=False)
+    child_id = db.Column(db.Integer, db.ForeignKey("child.id"), nullable=False)
+
+    child = db.relationship("Child")
+    __table_args__ = (db.UniqueConstraint("photo_id", "child_id", name="uq_phototag_photo_child"),)
+
+
 class ClassPhoto(db.Model):
     """A photo shared to a whole class (activities, group moments), visible to all parents in that class."""
     id = db.Column(db.Integer, primary_key=True)
@@ -396,6 +407,7 @@ class ClassPhoto(db.Model):
     uploaded_by_teacher_id = db.Column(db.Integer, db.ForeignKey("teacher.id"), nullable=True)
 
     school_class = db.relationship("SchoolClass")
+    tags = db.relationship("PhotoTag", backref="photo", lazy=True, cascade="all, delete-orphan")
 
 
 class WeeklyScheduleItem(db.Model):

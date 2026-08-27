@@ -40,6 +40,15 @@
       <input type="hidden" name="class_id" value="{{ selected_class_id }}">
       <input type="file" name="photo" accept="image/*" required>
       <textarea name="caption" rows="2" placeholder="وصف الصورة (اختياري)"></textarea>
+      <label style="font-size: 12px; color: #5B6B5E; display:block; margin-bottom: 6px;">مين موجود في الصورة؟ (اختياري، لو محددتيش هتظهر لكل الفصل)</label>
+      <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+        {% for c in class_children %}
+        <label style="display:flex; align-items:center; gap:5px; background:#F4F7F1; padding:6px 10px; border-radius:20px; font-size:12px;">
+          <input type="checkbox" name="child_ids" value="{{ c.id }}" style="width:auto;">
+          {{ c.name }}
+        </label>
+        {% endfor %}
+      </div>
       <button type="submit">رفع الصورة</button>
     </form>
   </div>
@@ -49,6 +58,11 @@
     <div class="photo">
       <img src="{{ url_for('serve_class_photo', photo_id=p.id) }}">
       {% if p.caption %}<div class="cap">{{ p.caption }}</div>{% endif %}
+      {% if tags_by_photo.get(p.id) %}
+        <div class="cap" style="color:#2F5D50; font-weight:700;">
+          👤 {% for c in class_children %}{% if c.id in tags_by_photo.get(p.id) %}{{ c.name }}{% if not loop.last %}، {% endif %}{% endif %}{% endfor %}
+        </div>
+      {% endif %}
     </div>
     {% endfor %}
   </div>
