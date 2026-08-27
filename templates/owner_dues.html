@@ -1,0 +1,35 @@
+{% extends "owner_base.html" %}
+{% block header_title %}المتأخرين في السداد{% endblock %}
+{% set active = "dues" %}
+{% block content %}
+<div class="card">
+  <h2>إجمالي المتأخرات</h2>
+  <div style="font-family: 'Cairo', sans-serif; font-weight: 800; font-size: 24px; color: {{ '#B23A22' if grand_total > 0 else '#2F5D50' }};">
+    {{ "%.0f"|format(grand_total) }} ج
+  </div>
+</div>
+
+<div class="card">
+  <h2>الطلبة المتأخرين ({{ rows|length }})</h2>
+  {% if not rows %}
+    <p style="font-size: 13px; color: #5B6B5E;">مفيش أي طالب متأخر في السداد 🎉</p>
+  {% endif %}
+  <table>
+    <thead><tr><th>الطفل</th><th>الفصل</th><th>الأشهر المستحقة</th><th>الإجمالي</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.child.name }}</td>
+        <td>{{ r.child.school_class.name }}</td>
+        <td style="font-size: 12px;">
+          {% for p in r.items %}
+            {{ p.month }}/{{ p.year }} ({{ "%.0f"|format(p.amount) }} ج){% if not loop.last %}، {% endif %}
+          {% endfor %}
+        </td>
+        <td style="font-weight: 700; color: #B23A22;">{{ "%.0f"|format(r.total) }} ج</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

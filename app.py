@@ -1289,6 +1289,28 @@ def owner_payment_methods_statement():
     )
 
 
+@app.route("/owner/dues")
+@login_required
+def owner_dues():
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    unpaid = Payment.query.filter_by(paid=False).order_by(Payment.year, Payment.month).all()
+
+    by_child = {}
+    for p in unpaid:
+        if p.child.archived:
+            continue
+        by_child.setdefault(p.child_id, {"child": p.child, "items": [], "total": 0.0})
+        by_child[p.child_id]["items"].append(p)
+        by_child[p.child_id]["total"] += float(p.amount)
+
+    rows = sorted(by_child.values(), key=lambda r: r["total"], reverse=True)
+    grand_total = sum(r["total"] for r in rows)
+
+    return render_template("owner_dues.html", rows=rows, grand_total=grand_total)
+
+
 @app.route("/owner/tuition", methods=["GET", "POST"])
 @login_required
 def owner_tuition():
