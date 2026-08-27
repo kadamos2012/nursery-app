@@ -31,7 +31,7 @@
 <body>
   <header>
     <h1>لوحة المعلمة — {{ today.strftime('%d/%m/%Y') }}</h1>
-    <p>فصل الفراشات · {{ children|length }} أطفال</p>
+    <p>{{ class_names|join('، ') if class_names else 'مفيش فصول متعينة لسه' }} · {{ children|length }} أطفال</p>
     <a href="{{ url_for('teacher_birthdays') }}" style="display:inline-block; margin-top:10px; background:rgba(255,255,255,0.15); color:white; text-decoration:none; font-size:12px; padding:7px 12px; border-radius:20px;">
       🎂 أعياد الميلاد الشهر ده
     </a>
@@ -56,7 +56,7 @@
               {% if child.medical_notes %}<span style="color:#B23A22;">⚠</span>{% endif %}
               {% if child.id in pending_requests_child_ids %}<span title="فيه طلب من ولي الأمر">📌</span>{% endif %}
             </div>
-            <div class="status">
+            <div class="status">{{ child.school_class.name }} —
               {% if log and log.mood %}
                 آخر تحديث: {{ log.mood }} {{ log.meal_status or '' }}
               {% else %}

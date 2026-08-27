@@ -13,7 +13,7 @@ from models import (
     Owner, Employee, SalaryPayment, Expense, Activity, Addon, ChildAddon,
     PaymentMethod, Advance, ExpenseCategory, Announcement,
     Trip, TripCostItem, TripClass, TripRegistration,
-    EnrollmentRequest, ClassPhoto, SpecialRequest
+    EnrollmentRequest, ClassPhoto, SpecialRequest, TeacherClass
 )
 from pywebpush import webpush, WebPushException
 import json as json_lib
@@ -132,6 +132,13 @@ def compute_child_expected_fee(child):
     else:
         discount = 0
     return max(subtotal - discount, 0)
+
+
+def teacher_class_ids(teacher):
+    ids = {tc.class_id for tc in TeacherClass.query.filter_by(teacher_id=teacher.id).all()}
+    if teacher.class_id:  # backward compat with old single-class assignment
+        ids.add(teacher.class_id)
+    return ids
 
 
 def child_belongs_to_parent(child_id, parent_id):
@@ -599,23 +606,27 @@ def teacher_class_photos():
     if current_role() != "teacher":
         return redirect(url_for("unified_login"))
 
-    class_id = current_user.class_id
+    class_ids = teacher_class_ids(current_user)
+    selected_class_id = request.values.get("class_id", type=int) or (list(class_ids)[0] if class_ids else None)
+
     if request.method == "POST":
         photo_file = request.files.get("photo")
         caption = request.form.get("caption", "").strip()
-        if photo_file and photo_file.filename and class_id:
+        upload_class_id = request.form.get("class_id", type=int) or selected_class_id
+        if photo_file and photo_file.filename and upload_class_id in class_ids:
             raw = photo_file.read()
             if len(raw) <= 3 * 1024 * 1024:
                 db.session.add(ClassPhoto(
-                    class_id=class_id, photo_data=base64.b64encode(raw).decode("ascii"),
+                    class_id=upload_class_id, photo_data=base64.b64encode(raw).decode("ascii"),
                     photo_mime=photo_file.mimetype or "image/jpeg", caption=caption,
                     uploaded_by_teacher_id=current_user.id,
                 ))
                 db.session.commit()
-        return redirect(url_for("teacher_class_photos"))
+        return redirect(url_for("teacher_class_photos", class_id=upload_class_id))
 
-    photos = ClassPhoto.query.filter_by(class_id=class_id).order_by(ClassPhoto.created_at.desc()).all() if class_id else []
-    return render_template("teacher_photos.html", photos=photos)
+    photos = ClassPhoto.query.filter_by(class_id=selected_class_id).order_by(ClassPhoto.created_at.desc()).all() if selected_class_id else []
+    classes = [SchoolClass.query.get(cid) for cid in class_ids]
+    return render_template("teacher_photos.html", photos=photos, classes=classes, selected_class_id=selected_class_id)
 
 
 @app.route("/class-photo/<int:photo_id>")
@@ -637,10 +648,11 @@ def serve_class_photo(photo_id):
 def teacher_dashboard():
     if current_role() != "teacher":
         return redirect(url_for("unified_login"))
-    if current_user.class_id:
-        children = Child.query.filter_by(class_id=current_user.class_id, archived=False).all()
+    class_ids = teacher_class_ids(current_user)
+    if class_ids:
+        children = Child.query.filter(Child.class_id.in_(class_ids), Child.archived.is_(False)).all()
     else:
-        children = Child.query.filter_by(archived=False).all()
+        children = []
 
     today = date.today()
     logs_today = {l.child_id: l for l in DailyLog.query.filter_by(date=today).all()}
@@ -651,6 +663,7 @@ def teacher_dashboard():
     return render_template(
         "teacher_dashboard.html", children=children, logs_today=logs_today, today=today,
         pending_requests_child_ids=pending_requests_child_ids,
+        class_names=[SchoolClass.query.get(cid).name for cid in class_ids],
     )
 
 
@@ -661,7 +674,8 @@ def teacher_child_log(child_id):
         return redirect(url_for("unified_login"))
 
     child = Child.query.get_or_404(child_id)
-    if current_user.class_id and child.class_id != current_user.class_id:
+    class_ids = teacher_class_ids(current_user)
+    if class_ids and child.class_id not in class_ids:
         return redirect(url_for("teacher_dashboard"))
 
     today = date.today()
@@ -697,7 +711,8 @@ def teacher_acknowledge_request(req_id):
         return redirect(url_for("unified_login"))
 
     req = SpecialRequest.query.get_or_404(req_id)
-    if current_user.class_id and req.child.class_id != current_user.class_id:
+    class_ids = teacher_class_ids(current_user)
+    if class_ids and req.child.class_id not in class_ids:
         return redirect(url_for("teacher_dashboard"))
 
     req.status = "acknowledged"
@@ -726,10 +741,11 @@ def teacher_birthdays():
         return redirect(url_for("unified_login"))
 
     today = date.today()
-    if current_user.class_id:
-        children = Child.query.filter_by(class_id=current_user.class_id, archived=False).all()
+    class_ids = teacher_class_ids(current_user)
+    if class_ids:
+        children = Child.query.filter(Child.class_id.in_(class_ids), Child.archived.is_(False)).all()
     else:
-        children = Child.query.filter_by(archived=False).all()
+        children = []
 
     birthday_kids = [c for c in children if c.birth_date and c.birth_date.month == today.month]
     birthday_kids.sort(key=lambda c: c.birth_date.day)
@@ -1190,6 +1206,53 @@ def owner_activities():
     activities = Activity.query.order_by(Activity.date.desc()).all()
     total_cost = sum(float(a.cost) for a in activities)
     return render_template("owner_activities.html", activities=activities, total_cost=total_cost)
+
+
+@app.route("/owner/teachers", methods=["GET", "POST"])
+@login_required
+def owner_teachers():
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        phone = request.form.get("phone", "").strip()
+        password = request.form.get("password", "").strip()
+        class_ids = request.form.getlist("class_ids")
+
+        if name and phone and password:
+            existing = Teacher.query.filter_by(phone=phone).first()
+            if not existing:
+                teacher = Teacher(nursery_id=current_user.nursery_id, name=name, phone=phone)
+                teacher.set_password(password)
+                db.session.add(teacher)
+                db.session.flush()
+                for cid in class_ids:
+                    db.session.add(TeacherClass(teacher_id=teacher.id, class_id=int(cid)))
+                db.session.commit()
+        return redirect(url_for("owner_teachers"))
+
+    teachers = Teacher.query.all()
+    classes = SchoolClass.query.all()
+    assigned_by_teacher = {
+        t.id: teacher_class_ids(t) for t in teachers
+    }
+    return render_template("owner_teachers.html", teachers=teachers, classes=classes, assigned_by_teacher=assigned_by_teacher)
+
+
+@app.route("/owner/teachers/<int:teacher_id>/classes", methods=["POST"])
+@login_required
+def owner_update_teacher_classes(teacher_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    teacher = Teacher.query.get_or_404(teacher_id)
+    TeacherClass.query.filter_by(teacher_id=teacher_id).delete()
+    teacher.class_id = None  # clear legacy single-class field so it doesn't silently re-add access
+    for cid in request.form.getlist("class_ids"):
+        db.session.add(TeacherClass(teacher_id=teacher_id, class_id=int(cid)))
+    db.session.commit()
+    return redirect(url_for("owner_teachers"))
 
 
 @app.route("/owner/staff", methods=["GET", "POST"])

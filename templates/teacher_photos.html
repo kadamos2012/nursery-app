@@ -27,7 +27,17 @@
   </header>
 
   <div class="card">
+    {% if classes|length > 1 %}
+    <form method="GET" style="margin-bottom: 12px;">
+      <select name="class_id" onchange="this.form.submit()" style="width:100%; padding:10px; border-radius:10px; border:1px solid #E4E9E1; font-family:'Tajawal',sans-serif;">
+        {% for c in classes %}
+          <option value="{{ c.id }}" {{ 'selected' if c.id == selected_class_id }}>فصل {{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    {% endif %}
     <form method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="class_id" value="{{ selected_class_id }}">
       <input type="file" name="photo" accept="image/*" required>
       <textarea name="caption" rows="2" placeholder="وصف الصورة (اختياري)"></textarea>
       <button type="submit">رفع الصورة</button>

@@ -33,7 +33,9 @@ class Teacher(UserMixin, db.Model):
     name = db.Column(db.String(150), nullable=False)
     phone = db.Column(db.String(30), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
-    class_id = db.Column(db.Integer, db.ForeignKey("school_class.id"), nullable=True)
+    class_id = db.Column(db.Integer, db.ForeignKey("school_class.id"), nullable=True)  # deprecated, kept for old data
+
+    classes = db.relationship("TeacherClass", backref="teacher", lazy=True, cascade="all, delete-orphan")
 
     def set_password(self, raw):
         self.password_hash = generate_password_hash(raw)
@@ -43,6 +45,17 @@ class Teacher(UserMixin, db.Model):
 
     def get_id(self):
         return f"teacher:{self.id}"
+
+
+class TeacherClass(db.Model):
+    """Which classes a teacher is responsible for (a teacher can have more than one)."""
+    id = db.Column(db.Integer, primary_key=True)
+    teacher_id = db.Column(db.Integer, db.ForeignKey("teacher.id"), nullable=False)
+    class_id = db.Column(db.Integer, db.ForeignKey("school_class.id"), nullable=False)
+
+    school_class = db.relationship("SchoolClass")
+
+    __table_args__ = (db.UniqueConstraint("teacher_id", "class_id", name="uq_teacher_class"),)
 
 
 class Parent(UserMixin, db.Model):
