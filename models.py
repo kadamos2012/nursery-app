@@ -218,6 +218,61 @@ class Advance(db.Model):
     deducted = db.Column(db.Boolean, default=False)
 
 
+class Trip(db.Model):
+    """A planned trip/outing with cost estimation and a suggested subscription price."""
+    id = db.Column(db.Integer, primary_key=True)
+    nursery_id = db.Column(db.Integer, db.ForeignKey("nursery.id"), nullable=False)
+    title = db.Column(db.String(150), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    date = db.Column(db.Date, nullable=True)
+    estimated_students = db.Column(db.Integer, nullable=False, default=1)
+    profit_margin_percent = db.Column(db.Numeric(5, 2), nullable=False, default=0)
+    final_price = db.Column(db.Numeric(10, 2), nullable=True)
+    status = db.Column(db.String(20), nullable=False, default="draft")  # "draft" | "published"
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    cost_items = db.relationship("TripCostItem", backref="trip", lazy=True, cascade="all, delete-orphan")
+    eligible_classes = db.relationship("TripClass", backref="trip", lazy=True, cascade="all, delete-orphan")
+    registrations = db.relationship("TripRegistration", backref="trip", lazy=True, cascade="all, delete-orphan")
+
+
+class TripCostItem(db.Model):
+    """A single cost line for a trip. cost_type is 'total' (split across estimated_students)
+    or 'per_child' (already a per-child amount)."""
+    id = db.Column(db.Integer, primary_key=True)
+    trip_id = db.Column(db.Integer, db.ForeignKey("trip.id"), nullable=False)
+    name = db.Column(db.String(150), nullable=False)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    cost_type = db.Column(db.String(10), nullable=False, default="total")  # "total" | "per_child"
+
+
+class TripClass(db.Model):
+    """Which classes are eligible to subscribe to a trip."""
+    id = db.Column(db.Integer, primary_key=True)
+    trip_id = db.Column(db.Integer, db.ForeignKey("trip.id"), nullable=False)
+    class_id = db.Column(db.Integer, db.ForeignKey("school_class.id"), nullable=False)
+
+    school_class = db.relationship("SchoolClass")
+
+
+class TripRegistration(db.Model):
+    """A child subscribed to a trip, either by the parent directly or registered by the owner."""
+    id = db.Column(db.Integer, primary_key=True)
+    trip_id = db.Column(db.Integer, db.ForeignKey("trip.id"), nullable=False)
+    child_id = db.Column(db.Integer, db.ForeignKey("child.id"), nullable=False)
+    price = db.Column(db.Numeric(10, 2), nullable=False)
+    paid = db.Column(db.Boolean, default=False)
+    paid_date = db.Column(db.Date, nullable=True)
+    payment_method_id = db.Column(db.Integer, db.ForeignKey("payment_method.id"), nullable=True)
+    requested_by = db.Column(db.String(10), nullable=False, default="parent")  # "parent" | "owner"
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    child = db.relationship("Child")
+    payment_method = db.relationship("PaymentMethod")
+
+    __table_args__ = (db.UniqueConstraint("trip_id", "child_id", name="uq_trip_child"),)
+
+
 class Announcement(db.Model):
     """A notice posted by the owner, shown to parents of a specific class or the whole nursery."""
     id = db.Column(db.Integer, primary_key=True)

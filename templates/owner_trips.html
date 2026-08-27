@@ -1,0 +1,27 @@
+{% extends "owner_base.html" %}
+{% block header_title %}الرحلات{% endblock %}
+{% set active = "trips" %}
+{% block content %}
+<a class="row-link" href="{{ url_for('owner_new_trip') }}">+ إنشاء رحلة جديدة ←</a>
+
+<div class="card" style="margin-top: 14px;">
+  <h2>كل الرحلات ({{ trip_data|length }})</h2>
+  {% if not trip_data %}
+    <p style="font-size: 13px; color: #5B6B5E;">لسه مفيش رحلات</p>
+  {% endif %}
+  <table>
+    <thead><tr><th>الرحلة</th><th>الحالة</th><th>السعر المقترح</th><th>مشتركين</th><th></th></tr></thead>
+    <tbody>
+      {% for d in trip_data %}
+      <tr>
+        <td>{{ d.trip.title }}{% if d.trip.date %}<div style="font-size:11px;color:#5B6B5E;">{{ d.trip.date.strftime('%d/%m/%Y') }}</div>{% endif %}</td>
+        <td><span class="badge {{ 'paid' if d.trip.status == 'published' else 'due' }}">{{ 'منشورة' if d.trip.status == 'published' else 'مسودة' }}</span></td>
+        <td>{{ "%.0f"|format(d.suggested) }} ج</td>
+        <td>{{ d.paid_count }}/{{ d.registered }}</td>
+        <td><a class="row-link" href="{{ url_for('owner_trip_detail', trip_id=d.trip.id) }}">تفاصيل ←</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "owner_base.html" %}
+{% block header_title %}إنشاء رحلة جديدة{% endblock %}
+{% set active = "trips" %}
+{% block content %}
+<a class="row-link" href="{{ url_for('owner_trips') }}">← رجوع للرحلات</a>
+
+<div class="card" style="margin-top: 14px;">
+  <h2>بيانات الرحلة</h2>
+  <form class="inline" method="POST" id="trip-form">
+    <input type="text" name="title" placeholder="اسم الرحلة، مثال: رحلة حديقة الحيوان" required>
+    <textarea name="description" rows="3" placeholder="شرح بسيط عن الرحلة..."></textarea>
+    <input type="date" name="date">
+
+    <label style="font-size: 12px; color: #5B6B5E;">عدد الطلبة المتوقع اشتراكهم (لتقسيم التكاليف الإجمالية)</label>
+    <input type="number" name="estimated_students" id="estimated_students" value="20" min="1" oninput="recalc()">
+
+    <label style="font-size: 12px; color: #5B6B5E; margin-top: 8px;">بنود التكلفة</label>
+    <div id="cost-items"></div>
+    <button type="button" onclick="addCostItem()" style="width: auto; padding: 8px 14px; background: #DCEAE3; color: #2F5D50; border: none; border-radius: 10px; font-size: 12.5px; cursor: pointer; align-self: flex-start;">+ إضافة بند تكلفة</button>
+
+    <label style="font-size: 12px; color: #5B6B5E; margin-top: 8px;">هامش الربح (%)</label>
+    <input type="number" step="0.1" name="profit_margin_percent" id="margin" value="20" oninput="recalc()">
+
+    <div id="calc-result" style="background: #DCEAE3; border-radius: 12px; padding: 14px; margin-top: 8px;">
+      <div style="font-size: 12px; color: #5B6B5E;">التكلفة التقديرية للطفل الواحد</div>
+      <div id="cost-per-child" style="font-family: 'Cairo', sans-serif; font-weight: 700; font-size: 16px; color: #1F2A22; margin: 4px 0 10px;">0 ج</div>
+      <div style="font-size: 12px; color: #5B6B5E;">السعر المقترح للاشتراك (بعد هامش الربح)</div>
+      <div id="suggested-price" style="font-family: 'Cairo', sans-serif; font-weight: 800; font-size: 20px; color: #2F5D50; margin-top: 4px;">0 ج</div>
+    </div>
+
+    <button type="submit" class="primary">حفظ الرحلة كمسودة</button>
+  </form>
+</div>
+
+<script>
+  let itemCount = 0;
+
+  function addCostItem(name, amount, type) {
+    itemCount++;
+    const container = document.getElementById('cost-items');
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; gap:6px; margin-bottom:6px;';
+    row.innerHTML = `
+      <input type="text" name="item_name" placeholder="اسم البند، مثال: أتوبيس" value="${name || ''}" style="flex:2;" oninput="recalc()">
+      <input type="number" step="0.01" name="item_amount" placeholder="المبلغ" value="${amount || ''}" style="flex:1;" oninput="recalc()">
+      <select name="item_type" style="flex:1;" onchange="recalc()">
+        <option value="total" ${type === 'total' || !type ? 'selected' : ''}>إجمالي (يتقسم)</option>
+        <option value="per_child" ${type === 'per_child' ? 'selected' : ''}>للطفل الواحد</option>
+      </select>
+      <button type="button" onclick="this.parentElement.remove(); recalc();" style="background:#F8DFD9; border:none; border-radius:8px; padding:0 10px; color:#B23A22; cursor:pointer;">×</button>
+    `;
+    container.appendChild(row);
+  }
+
+  function recalc() {
+    const students = parseFloat(document.getElementById('estimated_students').value) || 1;
+    const margin = parseFloat(document.getElementById('margin').value) || 0;
+    const names = document.getElementsByName('item_amount');
+    const types = document.getElementsByName('item_type');
+    let costPerChild = 0;
+    for (let i = 0; i < names.length; i++) {
+      const amount = parseFloat(names[i].value) || 0;
+      const type = types[i].value;
+      costPerChild += type === 'per_child' ? amount : amount / students;
+    }
+    const suggested = costPerChild * (1 + margin / 100);
+    document.getElementById('cost-per-child').textContent = Math.round(costPerChild) + ' ج';
+    document.getElementById('suggested-price').textContent = Math.round(suggested) + ' ج';
+  }
+
+  addCostItem();
+  recalc();
+</script>
+{% endblock %}

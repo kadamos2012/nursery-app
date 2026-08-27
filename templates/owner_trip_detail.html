@@ -1,0 +1,106 @@
+{% extends "owner_base.html" %}
+{% block header_title %}{{ trip.title }}{% endblock %}
+{% set active = "trips" %}
+{% block content %}
+<a class="row-link" href="{{ url_for('owner_trips') }}">← رجوع للرحلات</a>
+
+<div class="card" style="margin-top: 14px;">
+  <h2>ملخص التكلفة</h2>
+  <table>
+    <thead><tr><th>البند</th><th>المبلغ</th><th>النوع</th></tr></thead>
+    <tbody>
+      {% for item in trip.cost_items %}
+      <tr>
+        <td>{{ item.name }}</td>
+        <td>{{ "%.0f"|format(item.amount) }} ج</td>
+        <td>{{ 'للطفل الواحد' if item.cost_type == 'per_child' else 'إجمالي (مقسوم على ' + trip.estimated_students|string + ')' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div style="display:flex; gap:10px; margin-top: 12px;">
+    <div style="flex:1; background:#DCEAE3; border-radius:12px; padding:12px;">
+      <div style="font-size:11px; color:#5B6B5E;">التكلفة للطفل</div>
+      <div style="font-family:'Cairo',sans-serif; font-weight:700; font-size:16px;">{{ "%.0f"|format(cost_per_child) }} ج</div>
+    </div>
+    <div style="flex:1; background:#FBEBCB; border-radius:12px; padding:12px;">
+      <div style="font-size:11px; color:#5B6B5E;">السعر المقترح (هامش {{ trip.profit_margin_percent }}%)</div>
+      <div style="font-family:'Cairo',sans-serif; font-weight:800; font-size:18px; color:#946515;">{{ "%.0f"|format(suggested) }} ج</div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>{{ 'تعديل النشر' if trip.status == 'published' else 'نشر الرحلة لأولياء الأمور' }}</h2>
+  <form class="inline" method="POST" action="{{ url_for('owner_publish_trip', trip_id=trip.id) }}">
+    <label style="font-size: 12px; color: #5B6B5E;">السعر النهائي للاشتراك</label>
+    <input type="number" step="0.01" name="final_price" value="{{ trip.final_price or (suggested|round|int) }}" required>
+
+    <label style="font-size: 12px; color: #5B6B5E;">تاريخ الرحلة</label>
+    <input type="date" name="date" value="{{ trip.date.isoformat() if trip.date else '' }}">
+
+    <label style="font-size: 12px; color: #5B6B5E;">الفصول المسموح لها الاشتراك</label>
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+      {% for c in classes %}
+      <label style="display:flex; align-items:center; gap:8px; font-size: 13px;">
+        <input type="checkbox" name="class_ids" value="{{ c.id }}" {{ 'checked' if c.id in eligible_ids }} style="width:auto;">
+        {{ c.name }}
+      </label>
+      {% endfor %}
+    </div>
+
+    <button type="submit" class="primary">{{ 'حفظ التعديلات' if trip.status == 'published' else 'نشر الرحلة الآن' }}</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>الأطفال المشتركين ({{ registrations|length }})</h2>
+  {% if not registrations %}
+    <p style="font-size: 13px; color: #5B6B5E;">لسه محدش اشترك</p>
+  {% endif %}
+  <table>
+    <thead><tr><th>الطفل</th><th>عن طريق</th><th>السعر</th><th>الحالة</th></tr></thead>
+    <tbody>
+      {% for r in registrations %}
+      <tr>
+        <td>{{ r.child.name }}</td>
+        <td>{{ 'ولي الأمر' if r.requested_by == 'parent' else 'المالكة' }}</td>
+        <td>{{ "%.0f"|format(r.price) }} ج</td>
+        <td>
+          {% if r.paid %}
+            <span class="badge paid">مدفوع ({{ r.payment_method.name if r.payment_method else '—' }})</span>
+          {% else %}
+            <form method="POST" action="{{ url_for('owner_pay_trip_registration', reg_id=r.id) }}" style="display:flex; gap:6px;">
+              <select name="payment_method_id" style="padding:6px 8px; font-size:11.5px;" required>
+                <option value="">الطريقة</option>
+                {% for m in methods %}<option value="{{ m.id }}">{{ m.name }}</option>{% endfor %}
+              </select>
+              <button type="submit" class="badge due" style="border:none;cursor:pointer;">تحصيل</button>
+            </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if trip.status == 'published' %}
+<div class="card">
+  <h2>تسجيل طفل يدوياً (لو ولي الأمر بلّغك بدل ما يشترك بنفسه)</h2>
+  {% if not unregistered_children %}
+    <p style="font-size: 13px; color: #5B6B5E;">كل أطفال الفصول المسموحة مشتركين بالفعل، أو محتاجة تحددي الفصول الأول</p>
+  {% else %}
+  <form class="inline" method="POST" action="{{ url_for('owner_register_child_trip', trip_id=trip.id) }}" style="flex-direction: row; gap: 8px;">
+    <select name="child_id" required>
+      <option value="">اختاري الطفل</option>
+      {% for c in unregistered_children %}
+        <option value="{{ c.id }}">{{ c.name }} — {{ c.school_class.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="primary" style="width: auto; padding: 10px 16px;">تسجيل</button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

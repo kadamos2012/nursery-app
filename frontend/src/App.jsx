@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   Home, BookOpen, CalendarCheck, MessageCircle, Sun, Moon, UtensilsCrossed,
   Smile, Clock, CreditCard, Send, CheckCircle2, Settings, LogOut,
-  Loader2, AlertCircle, Bell, BellOff, Megaphone
+  Loader2, AlertCircle, Bell, BellOff, Megaphone, MapPin
 } from "lucide-react";
 
 const C = {
@@ -388,6 +388,63 @@ function AnnouncementsCard({ announcements }) {
   );
 }
 
+function TripsCard({ apiFetch, childId }) {
+  const [trips, setTrips] = useState([]);
+  const [busy, setBusy] = useState(null);
+
+  const load = useCallback(() => {
+    apiFetch(`/api/child/${childId}/trips`).then(setTrips).catch(() => {});
+  }, [childId, apiFetch]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const subscribe = async (tripId) => {
+    setBusy(tripId);
+    try {
+      await apiFetch(`/api/child/${childId}/trips/${tripId}/register`, { method: "POST" });
+      load();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (!trips || trips.length === 0) return null;
+
+  return (
+    <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: "0 2px 10px rgba(47,93,80,0.06)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <MapPin size={17} color={C.primary} />
+        <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: C.ink }}>الرحلات المتاحة</span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {trips.map((t) => (
+          <div key={t.id} style={{ background: C.bg, borderRadius: 12, padding: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 13, color: C.ink }}>{t.title}</span>
+              <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 13, color: C.primary }}>{Math.round(parseFloat(t.price))} ج</span>
+            </div>
+            {t.date && <div style={{ fontFamily: bodyFont, fontSize: 11, color: C.inkSoft, marginTop: 2 }}>📅 {t.date}</div>}
+            {t.description && <p style={{ fontFamily: bodyFont, fontSize: 12, color: C.ink, margin: "6px 0", lineHeight: 1.6 }}>{t.description}</p>}
+            {t.registration ? (
+              <div style={{ marginTop: 8, fontFamily: bodyFont, fontSize: 11.5, fontWeight: 700, color: t.registration.paid ? C.primary : "#946515" }}>
+                {t.registration.paid ? "✅ الاشتراك مؤكد ومدفوع" : "⏳ تم تسجيل الاشتراك، في انتظار السداد"}
+              </div>
+            ) : (
+              <button
+                onClick={() => subscribe(t.id)}
+                disabled={busy === t.id}
+                style={{ marginTop: 8, width: "100%", padding: 10, background: C.primary, color: "white", border: "none", borderRadius: 10, fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, opacity: busy === t.id ? 0.6 : 1 }}
+              >
+                {busy === t.id ? "جاري الاشتراك..." : "اشتراك الآن"}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function HomeTab({ apiFetch, childId, notifications, medicalNotes }) {
   const [today, setToday] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState(null);
@@ -414,6 +471,7 @@ function HomeTab({ apiFetch, childId, notifications, medicalNotes }) {
       <MedicalAlertBanner notes={medicalNotes} />
       <PaymentReminderBanner status={paymentStatus} />
       <AnnouncementsCard announcements={announcements} />
+      <TripsCard apiFetch={apiFetch} childId={childId} />
       <DayPathCard today={today} />
     </div>
   );

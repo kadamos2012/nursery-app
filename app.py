@@ -11,7 +11,8 @@ from models import (
     db, Nursery, SchoolClass, Teacher, Parent, Child, ParentChild,
     DailyLog, AttendanceRecord, Payment, Message, PushSubscription,
     Owner, Employee, SalaryPayment, Expense, Activity, Addon, ChildAddon,
-    PaymentMethod, Advance, ExpenseCategory, Announcement
+    PaymentMethod, Advance, ExpenseCategory, Announcement,
+    Trip, TripCostItem, TripClass, TripRegistration
 )
 from pywebpush import webpush, WebPushException
 import json as json_lib
@@ -294,6 +295,50 @@ def child_announcements(child_id):
     } for a in announcements])
 
 
+@app.route("/api/child/<int:child_id>/trips")
+@login_required
+def child_trips(child_id):
+    if current_role() == "parent" and not child_belongs_to_parent(child_id, current_user.id):
+        return jsonify({"error": "غير مصرح"}), 403
+
+    child = Child.query.get_or_404(child_id)
+    eligible_trip_ids = [tc.trip_id for tc in TripClass.query.filter_by(class_id=child.class_id).all()]
+    trips = Trip.query.filter(
+        Trip.id.in_(eligible_trip_ids), Trip.status == "published"
+    ).order_by(Trip.date).all() if eligible_trip_ids else []
+
+    result = []
+    for t in trips:
+        reg = TripRegistration.query.filter_by(trip_id=t.id, child_id=child_id).first()
+        result.append({
+            "id": t.id, "title": t.title, "description": t.description,
+            "date": t.date.isoformat() if t.date else None,
+            "price": str(t.final_price or 0),
+            "registration": {
+                "paid": reg.paid, "requested_by": reg.requested_by,
+            } if reg else None,
+        })
+    return jsonify(result)
+
+
+@app.route("/api/child/<int:child_id>/trips/<int:trip_id>/register", methods=["POST"])
+@login_required
+def child_register_trip(child_id, trip_id):
+    if current_role() == "parent" and not child_belongs_to_parent(child_id, current_user.id):
+        return jsonify({"error": "غير مصرح"}), 403
+
+    trip = Trip.query.get_or_404(trip_id)
+    existing = TripRegistration.query.filter_by(trip_id=trip_id, child_id=child_id).first()
+    if existing:
+        return jsonify({"ok": True, "already_registered": True})
+
+    db.session.add(TripRegistration(
+        trip_id=trip_id, child_id=child_id, price=trip.final_price or 0, requested_by="parent",
+    ))
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
 @app.route("/api/child/<int:child_id>/messages", methods=["GET", "POST"])
 @login_required
 def child_messages(child_id):
@@ -548,6 +593,152 @@ def owner_delete_announcement(announcement_id):
     db.session.delete(announcement)
     db.session.commit()
     return redirect(url_for("owner_announcements"))
+
+
+def compute_trip_pricing(trip):
+    """Returns (cost_per_child, suggested_price) based on cost items, estimated
+    students, and profit margin."""
+    cost_per_child = 0.0
+    for item in trip.cost_items:
+        if item.cost_type == "per_child":
+            cost_per_child += float(item.amount)
+        else:
+            cost_per_child += float(item.amount) / max(trip.estimated_students, 1)
+    suggested_price = cost_per_child * (1 + float(trip.profit_margin_percent) / 100)
+    return cost_per_child, suggested_price
+
+
+@app.route("/owner/trips")
+@login_required
+def owner_trips():
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    trips = Trip.query.order_by(Trip.created_at.desc()).all()
+    trip_data = []
+    for t in trips:
+        cost_per_child, suggested = compute_trip_pricing(t)
+        registered = len(t.registrations)
+        paid_count = len([r for r in t.registrations if r.paid])
+        trip_data.append({
+            "trip": t, "cost_per_child": cost_per_child, "suggested": suggested,
+            "registered": registered, "paid_count": paid_count,
+        })
+    return render_template("owner_trips.html", trip_data=trip_data)
+
+
+@app.route("/owner/trips/new", methods=["GET", "POST"])
+@login_required
+def owner_new_trip():
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        description = request.form.get("description", "").strip()
+        trip_date = request.form.get("date") or None
+        estimated_students = int(request.form.get("estimated_students") or 1)
+        margin = request.form.get("profit_margin_percent") or 0
+
+        trip = Trip(
+            nursery_id=current_user.nursery_id, title=title, description=description,
+            date=trip_date, estimated_students=estimated_students, profit_margin_percent=margin,
+        )
+        db.session.add(trip)
+        db.session.flush()
+
+        names = request.form.getlist("item_name")
+        amounts = request.form.getlist("item_amount")
+        types = request.form.getlist("item_type")
+        for name, amount, ctype in zip(names, amounts, types):
+            if name.strip() and amount:
+                db.session.add(TripCostItem(trip_id=trip.id, name=name.strip(), amount=amount, cost_type=ctype))
+
+        db.session.commit()
+        return redirect(url_for("owner_trip_detail", trip_id=trip.id))
+
+    return render_template("owner_trip_new.html")
+
+
+@app.route("/owner/trips/<int:trip_id>")
+@login_required
+def owner_trip_detail(trip_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    trip = Trip.query.get_or_404(trip_id)
+    cost_per_child, suggested = compute_trip_pricing(trip)
+    classes = SchoolClass.query.all()
+    eligible_ids = {tc.class_id for tc in trip.eligible_classes}
+
+    registrations = TripRegistration.query.filter_by(trip_id=trip_id).all()
+    methods = PaymentMethod.query.filter_by(active=True).all()
+
+    eligible_children = []
+    if eligible_ids:
+        eligible_children = Child.query.filter(Child.class_id.in_(eligible_ids), Child.archived.is_(False)).all()
+    registered_child_ids = {r.child_id for r in registrations}
+    unregistered_children = [c for c in eligible_children if c.id not in registered_child_ids]
+
+    return render_template(
+        "owner_trip_detail.html", trip=trip, cost_per_child=cost_per_child, suggested=suggested,
+        classes=classes, eligible_ids=eligible_ids, registrations=registrations, methods=methods,
+        unregistered_children=unregistered_children,
+    )
+
+
+@app.route("/owner/trips/<int:trip_id>/publish", methods=["POST"])
+@login_required
+def owner_publish_trip(trip_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    trip = Trip.query.get_or_404(trip_id)
+    trip.final_price = request.form.get("final_price") or 0
+    trip_date = request.form.get("date")
+    if trip_date:
+        trip.date = trip_date
+
+    TripClass.query.filter_by(trip_id=trip_id).delete()
+    class_ids = request.form.getlist("class_ids")
+    for cid in class_ids:
+        db.session.add(TripClass(trip_id=trip_id, class_id=int(cid)))
+
+    trip.status = "published"
+    db.session.commit()
+    return redirect(url_for("owner_trip_detail", trip_id=trip_id))
+
+
+@app.route("/owner/trips/<int:trip_id>/register", methods=["POST"])
+@login_required
+def owner_register_child_trip(trip_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    trip = Trip.query.get_or_404(trip_id)
+    child_id = request.form.get("child_id")
+    if child_id:
+        existing = TripRegistration.query.filter_by(trip_id=trip_id, child_id=child_id).first()
+        if not existing:
+            db.session.add(TripRegistration(
+                trip_id=trip_id, child_id=child_id, price=trip.final_price or 0, requested_by="owner",
+            ))
+            db.session.commit()
+    return redirect(url_for("owner_trip_detail", trip_id=trip_id))
+
+
+@app.route("/owner/trips/registrations/<int:reg_id>/pay", methods=["POST"])
+@login_required
+def owner_pay_trip_registration(reg_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    reg = TripRegistration.query.get_or_404(reg_id)
+    reg.paid = True
+    reg.paid_date = date.today()
+    reg.payment_method_id = request.form.get("payment_method_id") or None
+    db.session.commit()
+    return redirect(url_for("owner_trip_detail", trip_id=reg.trip_id))
 
 
 @app.route("/owner/birthdays")
