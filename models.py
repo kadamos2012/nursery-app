@@ -69,6 +69,7 @@ class Child(db.Model):
     monthly_fee = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     discount_type = db.Column(db.String(10), nullable=False, default="none")  # "none" | "fixed" | "percent"
     discount_value = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    archived = db.Column(db.Boolean, nullable=False, default=False)
 
     parents = db.relationship("ParentChild", backref="child", lazy=True)
     daily_logs = db.relationship("DailyLog", backref="child", lazy=True, order_by="DailyLog.date.desc()")
@@ -215,6 +216,14 @@ class Advance(db.Model):
     date = db.Column(db.Date, nullable=False, default=date.today)
     note = db.Column(db.String(255), nullable=True)
     deducted = db.Column(db.Boolean, default=False)
+
+
+class ExpenseCategory(db.Model):
+    """Editable catalog of expense line items (rent, bills, supplies, etc.)."""
+    id = db.Column(db.Integer, primary_key=True)
+    nursery_id = db.Column(db.Integer, db.ForeignKey("nursery.id"), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    active = db.Column(db.Boolean, default=True)
 
 
 class Expense(db.Model):

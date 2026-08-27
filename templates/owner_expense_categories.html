@@ -1,0 +1,40 @@
+{% extends "owner_base.html" %}
+{% block header_title %}بنود المصروف{% endblock %}
+{% set active = "expenses" %}
+{% block content %}
+<a class="row-link" href="{{ url_for('owner_expenses') }}">← رجوع للمصروفات</a>
+
+<div class="card" style="margin-top: 14px;">
+  <h2>إضافة بند جديد</h2>
+  <form class="inline" method="POST">
+    <input type="text" name="name" placeholder="اسم البند، مثال: صيانة تكييف" required>
+    <button type="submit" class="primary">إضافة</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>كل البنود ({{ categories|length }})</h2>
+  <table>
+    <thead><tr><th>الاسم</th><th></th></tr></thead>
+    <tbody>
+      {% for c in categories %}
+      <tr>
+        <td>
+          <form method="POST" action="{{ url_for('owner_edit_expense_category', category_id=c.id) }}" style="display:flex; gap:6px;">
+            <input type="text" name="name" value="{{ c.name }}" style="padding:6px 8px; font-size:12.5px;">
+            <button type="submit" class="badge paid" style="border:none;cursor:pointer;">حفظ</button>
+          </form>
+        </td>
+        <td>
+          <form method="POST" action="{{ url_for('owner_delete_expense_category', category_id=c.id) }}" onsubmit="return confirm('حذف البند؟');">
+            <button type="submit" class="badge due" style="border:none;cursor:pointer;">حذف</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="2">لسه مفيش بنود مسجلة</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

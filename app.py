@@ -11,7 +11,7 @@ from models import (
     db, Nursery, SchoolClass, Teacher, Parent, Child, ParentChild,
     DailyLog, AttendanceRecord, Payment, Message, PushSubscription,
     Owner, Employee, SalaryPayment, Expense, Activity, Addon, ChildAddon,
-    PaymentMethod, Advance
+    PaymentMethod, Advance, ExpenseCategory
 )
 from pywebpush import webpush, WebPushException
 import json as json_lib
@@ -370,7 +370,10 @@ def unified_login():
 def teacher_dashboard():
     if current_role() != "teacher":
         return redirect(url_for("unified_login"))
-    children = Child.query.filter_by(class_id=current_user.class_id).all() if current_user.class_id else Child.query.all()
+    if current_user.class_id:
+        children = Child.query.filter_by(class_id=current_user.class_id, archived=False).all()
+    else:
+        children = Child.query.filter_by(archived=False).all()
 
     today = date.today()
     logs_today = {l.child_id: l for l in DailyLog.query.filter_by(date=today).all()}
@@ -494,7 +497,8 @@ def owner_class_students(class_id):
             db.session.commit()
         return redirect(url_for("owner_class_students", class_id=class_id))
 
-    students = Child.query.filter_by(class_id=class_id).all()
+    show_archived = request.args.get("archived") == "1"
+    students = Child.query.filter_by(class_id=class_id, archived=show_archived).all()
     parents_by_child = {}
     addons_by_child = {}
     total_due_by_child = {}
@@ -508,8 +512,20 @@ def owner_class_students(class_id):
     return render_template(
         "owner_students.html", school_class=school_class, students=students,
         parents_by_child=parents_by_child, addons_by_child=addons_by_child,
-        total_due_by_child=total_due_by_child, today=date.today(),
+        total_due_by_child=total_due_by_child, today=date.today(), show_archived=show_archived,
     )
+
+
+@app.route("/owner/child/<int:child_id>/archive", methods=["POST"])
+@login_required
+def owner_toggle_archive(child_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    child = Child.query.get_or_404(child_id)
+    child.archived = not child.archived
+    db.session.commit()
+    return redirect(url_for("owner_class_students", class_id=child.class_id, archived="1" if child.archived else None))
 
 
 @app.route("/owner/activities", methods=["GET", "POST"])
@@ -783,6 +799,32 @@ def owner_payment_methods():
     return render_template("owner_payment_methods.html", methods=methods)
 
 
+@app.route("/owner/payment-methods/<int:method_id>/edit", methods=["POST"])
+@login_required
+def owner_edit_payment_method(method_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    method = PaymentMethod.query.get_or_404(method_id)
+    name = request.form.get("name", "").strip()
+    if name:
+        method.name = name
+        db.session.commit()
+    return redirect(url_for("owner_payment_methods"))
+
+
+@app.route("/owner/payment-methods/<int:method_id>/delete", methods=["POST"])
+@login_required
+def owner_delete_payment_method(method_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    method = PaymentMethod.query.get_or_404(method_id)
+    method.active = False
+    db.session.commit()
+    return redirect(url_for("owner_payment_methods"))
+
+
 @app.route("/owner/payment-methods/statement")
 @login_required
 def owner_payment_methods_statement():
@@ -870,7 +912,7 @@ def owner_tuition():
         db.session.commit()
         return redirect(url_for("owner_tuition", month=month, year=year))
 
-    children = Child.query.all()
+    children = Child.query.filter_by(archived=False).all()
     existing_payments = {
         p.child_id: p for p in Payment.query.filter_by(month=month, year=year).all()
     }
@@ -886,6 +928,49 @@ def owner_tuition():
         })
 
     return render_template("owner_tuition.html", rows=rows, methods=methods, month=month, year=year)
+
+
+@app.route("/owner/expense-categories", methods=["GET", "POST"])
+@login_required
+def owner_expense_categories():
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        if name:
+            db.session.add(ExpenseCategory(nursery_id=current_user.nursery_id, name=name))
+            db.session.commit()
+        return redirect(url_for("owner_expense_categories"))
+
+    categories = ExpenseCategory.query.filter_by(active=True).all()
+    return render_template("owner_expense_categories.html", categories=categories)
+
+
+@app.route("/owner/expense-categories/<int:category_id>/edit", methods=["POST"])
+@login_required
+def owner_edit_expense_category(category_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    category = ExpenseCategory.query.get_or_404(category_id)
+    name = request.form.get("name", "").strip()
+    if name:
+        category.name = name
+        db.session.commit()
+    return redirect(url_for("owner_expense_categories"))
+
+
+@app.route("/owner/expense-categories/<int:category_id>/delete", methods=["POST"])
+@login_required
+def owner_delete_expense_category(category_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    category = ExpenseCategory.query.get_or_404(category_id)
+    category.active = False
+    db.session.commit()
+    return redirect(url_for("owner_expense_categories"))
 
 
 @app.route("/owner/expenses", methods=["GET", "POST"])
@@ -912,7 +997,8 @@ def owner_expenses():
     expenses = Expense.query.order_by(Expense.date.desc()).all()
     total = sum(float(e.amount) for e in expenses)
     methods = PaymentMethod.query.filter_by(active=True).all()
-    return render_template("owner_expenses.html", expenses=expenses, total=total, methods=methods)
+    categories = ExpenseCategory.query.filter_by(active=True).all()
+    return render_template("owner_expenses.html", expenses=expenses, total=total, methods=methods, categories=categories)
 
 
 @app.route("/owner/reports")
@@ -968,6 +1054,30 @@ def db_init():
     with app.app_context():
         db.create_all()
     print("تم التأكد من وجود الجداول.")
+
+
+@app.cli.command("generate-monthly-tuition")
+def generate_monthly_tuition():
+    """Creates this month's tuition Payment record for every active (non-archived) child,
+    based on their current subscription fee + addons - discount. Meant to run on day 1
+    of each month via a scheduled cron job. Safe to re-run: skips children who already
+    have a payment record for the month."""
+    with app.app_context():
+        today = date.today()
+        children = Child.query.filter_by(archived=False).all()
+        created = 0
+        for child in children:
+            existing = Payment.query.filter_by(child_id=child.id, month=today.month, year=today.year).first()
+            if existing:
+                continue
+            expected = compute_child_expected_fee(child)
+            db.session.add(Payment(
+                child_id=child.id, month=today.month, year=today.year,
+                amount=expected, paid=False,
+            ))
+            created += 1
+        db.session.commit()
+        print(f"تم إنشاء {created} سجل مصاريف لشهر {today.month}/{today.year}")
 
 
 @app.cli.command("seed")

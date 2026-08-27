@@ -25,8 +25,15 @@
 </div>
 
 <div class="card">
-  <h2>الطلبة المسجلين ({{ students|length }})</h2>
-  <table>
+  <h2>
+    {{ 'الطلبة المؤرشفين' if show_archived else 'الطلبة المسجلين' }} ({{ students|length }})
+  </h2>
+  {% if show_archived %}
+    <a class="row-link" href="{{ url_for('owner_class_students', class_id=school_class.id) }}">← رجوع للطلبة النشطين</a>
+  {% else %}
+    <a class="row-link" href="{{ url_for('owner_class_students', class_id=school_class.id, archived=1) }}">عرض الطلبة المؤرشفين ←</a>
+  {% endif %}
+  <table style="margin-top: 10px;">
     <thead><tr><th>الاسم</th><th>السن</th><th>نوع الاشتراك</th><th>الاشتراك الأساسي</th><th>إضافي</th><th>الإجمالي</th><th></th></tr></thead>
     <tbody>
       {% for s in students %}
@@ -73,6 +80,11 @@
             <div style="font-size:10.5px;color:#B23A22;font-weight:700;margin-top:2px;">⚠ يوجد ملاحظة طبية</div>
           {% endif %}
           <a class="row-link" style="font-size: 11px;" href="{{ url_for('owner_child_profile', child_id=s.id) }}">الصورة/الطبي ←</a>
+          <form method="POST" action="{{ url_for('owner_toggle_archive', child_id=s.id) }}" style="margin-top: 4px;">
+            <button type="submit" style="font-size: 10.5px; background: none; border: 1px solid #E4E9E1; border-radius: 8px; padding: 4px 8px; cursor: pointer; color: {{ '#2F5D50' if show_archived else '#B23A22' }};">
+              {{ 'إلغاء الأرشفة' if show_archived else 'أرشفة' }}
+            </button>
+          </form>
         </td>
       </tr>
       {% endfor %}

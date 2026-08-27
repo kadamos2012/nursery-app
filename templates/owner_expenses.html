@@ -2,16 +2,16 @@
 {% block header_title %}المصروفات العامة{% endblock %}
 {% set active = "expenses" %}
 {% block content %}
-<div class="card">
+<a class="row-link" href="{{ url_for('owner_expense_categories') }}">إدارة بنود المصروف ←</a>
+
+<div class="card" style="margin-top: 14px;">
   <h2>تسجيل مصروف جديد</h2>
   <form class="inline" method="POST">
     <select name="category" required>
       <option value="">اختاري نوع المصروف</option>
-      <option value="إيجار">إيجار</option>
-      <option value="فواتير">فواتير (كهرباء/مياه/نت)</option>
-      <option value="مستلزمات">مستلزمات ولوازم</option>
-      <option value="صيانة">صيانة</option>
-      <option value="أخرى">أخرى</option>
+      {% for c in categories %}
+        <option value="{{ c.name }}">{{ c.name }}</option>
+      {% endfor %}
     </select>
     <input type="text" name="description" placeholder="وصف المصروف (اختياري)">
     <input type="number" step="0.01" name="amount" placeholder="المبلغ بالجنيه" required>
