@@ -10,6 +10,16 @@
     <input type="text" name="name" placeholder="اسم الطفل" required>
     <label style="font-size: 12px; color: #5B6B5E;">تاريخ الميلاد</label>
     <input type="date" name="birth_date">
+
+    <label style="font-size: 12px; color: #5B6B5E;">نوع الاشتراك</label>
+    <select name="subscription_type" required>
+      <option value="full_time">دوام كامل (Full time)</option>
+      <option value="part_time">دوام جزئي (Part time)</option>
+    </select>
+
+    <label style="font-size: 12px; color: #5B6B5E;">قيمة الاشتراك الشهري (بالجنيه)</label>
+    <input type="number" step="0.01" name="monthly_fee" placeholder="مثال: 2500" required>
+
     <button type="submit" class="primary">تسجيل الطالب</button>
   </form>
 </div>
@@ -17,29 +27,37 @@
 <div class="card">
   <h2>الطلبة المسجلين ({{ students|length }})</h2>
   <table>
-    <thead><tr><th>الاسم</th><th>تاريخ الميلاد</th><th>السن</th><th>أولياء الأمور</th></tr></thead>
+    <thead><tr><th>الاسم</th><th>السن</th><th>نوع الاشتراك</th><th>الاشتراك الأساسي</th><th>إضافي</th><th>الإجمالي</th></tr></thead>
     <tbody>
       {% for s in students %}
       <tr>
-        <td>{{ s.name }}</td>
-        <td>{{ s.birth_date.strftime('%d/%m/%Y') if s.birth_date else '—' }}</td>
+        <td>
+          {{ s.name }}
+          <div style="font-size:11px;color:#5B6B5E;margin-top:2px;">
+            {% set plist = parents_by_child.get(s.id, []) %}
+            {% if plist %}{% for p in plist %}{{ p.name }}{% if not loop.last %}، {% endif %}{% endfor %}
+            {% else %}<span style="color:#B23A22;">مفيش ولي أمر مربوط</span>{% endif %}
+          </div>
+        </td>
         <td>
           {% if s.birth_date %}
             {% set age_days = (today - s.birth_date).days %}
-            {% set years = (age_days / 365.25) | int %}
-            {% set months = ((age_days % 365.25) / 30.4) | int %}
-            {{ years }} سنة{% if months %} و{{ months }} شهور{% endif %}
+            {{ (age_days / 365.25) | int }} سنة
           {% else %}—{% endif %}
         </td>
         <td>
-          {% set plist = parents_by_child.get(s.id, []) %}
-          {% if plist %}
-            {% for p in plist %}{{ p.name }}{% if not loop.last %}، {% endif %}{% endfor %}
-          {% else %}
-            <span style="color:#B23A22;">لا يوجد</span>
-          {% endif %}
-          — <a class="row-link" href="{{ url_for('owner_parents') }}">إدارة ←</a>
+          <span class="badge {{ 'paid' if s.subscription_type == 'full_time' else 'due' }}">
+            {{ 'دوام كامل' if s.subscription_type == 'full_time' else 'دوام جزئي' }}
+          </span>
         </td>
+        <td>{{ "%.0f"|format(s.monthly_fee) }} ج</td>
+        <td style="font-size: 11.5px;">
+          {% set alist = addons_by_child.get(s.id, []) %}
+          {% if alist %}{% for a in alist %}{{ a.name }}{% if not loop.last %}، {% endif %}{% endfor %}
+          {% else %}—{% endif %}
+          <br><a class="row-link" style="font-size: 11px;" href="{{ url_for('owner_child_addons', child_id=s.id) }}">إدارة ←</a>
+        </td>
+        <td style="font-weight: 700;">{{ "%.0f"|format(total_due_by_child.get(s.id, 0)) }} ج</td>
       </tr>
       {% endfor %}
     </tbody>

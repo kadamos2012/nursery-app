@@ -10,7 +10,7 @@ from flask_cors import CORS
 from models import (
     db, Nursery, SchoolClass, Teacher, Parent, Child, ParentChild,
     DailyLog, AttendanceRecord, Payment, Message, PushSubscription,
-    Owner, Employee, SalaryPayment, Expense, Activity
+    Owner, Employee, SalaryPayment, Expense, Activity, Addon, ChildAddon
 )
 from pywebpush import webpush, WebPushException
 import json as json_lib
@@ -470,17 +470,33 @@ def owner_class_students(class_id):
     if request.method == "POST":
         name = request.form.get("name", "").strip()
         birth_date = request.form.get("birth_date") or None
+        subscription_type = request.form.get("subscription_type", "full_time")
+        monthly_fee = request.form.get("monthly_fee") or 0
         if name:
-            db.session.add(Child(class_id=class_id, name=name, birth_date=birth_date))
+            db.session.add(Child(
+                class_id=class_id, name=name, birth_date=birth_date,
+                subscription_type=subscription_type, monthly_fee=monthly_fee,
+            ))
             db.session.commit()
         return redirect(url_for("owner_class_students", class_id=class_id))
 
     students = Child.query.filter_by(class_id=class_id).all()
     parents_by_child = {}
+    addons_by_child = {}
+    total_due_by_child = {}
     for s in students:
         links = ParentChild.query.filter_by(child_id=s.id).all()
         parents_by_child[s.id] = [Parent.query.get(l.parent_id) for l in links]
-    return render_template("owner_students.html", school_class=school_class, students=students, parents_by_child=parents_by_child, today=date.today())
+        child_addons = ChildAddon.query.filter_by(child_id=s.id).all()
+        addons_by_child[s.id] = [ca.addon for ca in child_addons]
+        addons_total = sum(float(a.monthly_fee) for a in addons_by_child[s.id])
+        total_due_by_child[s.id] = float(s.monthly_fee) + addons_total
+
+    return render_template(
+        "owner_students.html", school_class=school_class, students=students,
+        parents_by_child=parents_by_child, addons_by_child=addons_by_child,
+        total_due_by_child=total_due_by_child, today=date.today(),
+    )
 
 
 @app.route("/owner/activities", methods=["GET", "POST"])
@@ -611,6 +627,52 @@ def render_template_owner_parents_error(message):
         links = ParentChild.query.filter_by(parent_id=p.id).all()
         links_by_parent[p.id] = [Child.query.get(l.child_id) for l in links]
     return render_template("owner_parents.html", parents=parents, children=children, links_by_parent=links_by_parent, error=message)
+
+
+@app.route("/owner/addons", methods=["GET", "POST"])
+@login_required
+def owner_addons():
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        monthly_fee = request.form.get("monthly_fee") or 0
+        if name:
+            db.session.add(Addon(nursery_id=current_user.nursery_id, name=name, monthly_fee=monthly_fee))
+            db.session.commit()
+        return redirect(url_for("owner_addons"))
+
+    addons = Addon.query.filter_by(active=True).all()
+    subscriber_counts = {a.id: ChildAddon.query.filter_by(addon_id=a.id).count() for a in addons}
+    return render_template("owner_addons.html", addons=addons, subscriber_counts=subscriber_counts)
+
+
+@app.route("/owner/child/<int:child_id>/addons", methods=["GET", "POST"])
+@login_required
+def owner_child_addons(child_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    child = Child.query.get_or_404(child_id)
+
+    if request.method == "POST":
+        selected_ids = set(int(x) for x in request.form.getlist("addon_ids"))
+        current_links = ChildAddon.query.filter_by(child_id=child_id).all()
+        current_ids = {link.addon_id for link in current_links}
+
+        for link in current_links:
+            if link.addon_id not in selected_ids:
+                db.session.delete(link)
+        for addon_id in selected_ids - current_ids:
+            db.session.add(ChildAddon(child_id=child_id, addon_id=addon_id))
+
+        db.session.commit()
+        return redirect(url_for("owner_class_students", class_id=child.class_id))
+
+    all_addons = Addon.query.filter_by(active=True).all()
+    active_ids = {ca.addon_id for ca in ChildAddon.query.filter_by(child_id=child_id).all()}
+    return render_template("owner_child_addons.html", child=child, all_addons=all_addons, active_ids=active_ids)
 
 
 @app.route("/owner/expenses", methods=["GET", "POST"])

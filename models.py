@@ -62,11 +62,15 @@ class Child(db.Model):
     birth_date = db.Column(db.Date, nullable=True)
     photo_url = db.Column(db.String(255), nullable=True)
 
+    subscription_type = db.Column(db.String(20), nullable=False, default="full_time")  # "full_time" | "part_time"
+    monthly_fee = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+
     parents = db.relationship("ParentChild", backref="child", lazy=True)
     daily_logs = db.relationship("DailyLog", backref="child", lazy=True, order_by="DailyLog.date.desc()")
     attendance = db.relationship("AttendanceRecord", backref="child", lazy=True)
     payments = db.relationship("Payment", backref="child", lazy=True)
     messages = db.relationship("Message", backref="child", lazy=True, order_by="Message.timestamp")
+    addons = db.relationship("ChildAddon", backref="child", lazy=True)
 
 
 class ParentChild(db.Model):
@@ -203,3 +207,24 @@ class Activity(db.Model):
     date = db.Column(db.Date, nullable=True)
     cost = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     notes = db.Column(db.Text, nullable=True)
+
+
+class Addon(db.Model):
+    """Catalog of additional/optional subscriptions on top of the base plan
+    (e.g. transport bus, extra meal, extended hours)."""
+    id = db.Column(db.Integer, primary_key=True)
+    nursery_id = db.Column(db.Integer, db.ForeignKey("nursery.id"), nullable=False)
+    name = db.Column(db.String(150), nullable=False)
+    monthly_fee = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    active = db.Column(db.Boolean, default=True)
+
+
+class ChildAddon(db.Model):
+    """Which additional subscriptions a specific child is enrolled in."""
+    id = db.Column(db.Integer, primary_key=True)
+    child_id = db.Column(db.Integer, db.ForeignKey("child.id"), nullable=False)
+    addon_id = db.Column(db.Integer, db.ForeignKey("addon.id"), nullable=False)
+
+    addon = db.relationship("Addon")
+
+    __table_args__ = (db.UniqueConstraint("child_id", "addon_id", name="uq_child_addon"),)
