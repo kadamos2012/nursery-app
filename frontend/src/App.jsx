@@ -604,6 +604,45 @@ function SpecialRequestCard({ apiFetch, childId }) {
   );
 }
 
+function TasksCard({ apiFetch, childId }) {
+  const [tasks, setTasks] = useState([]);
+
+  useEffect(() => {
+    if (!childId) return;
+    apiFetch(`/api/child/${childId}/tasks-today`).then(setTasks).catch(() => {});
+  }, [childId, apiFetch]);
+
+  if (!tasks || tasks.length === 0) return null;
+
+  return (
+    <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: "0 2px 10px rgba(47,93,80,0.06)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <CheckCircle2 size={17} color={C.primary} />
+        <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: C.ink }}>مهام النهاردة</span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {tasks.map((t) => (
+          <div key={t.id} style={{
+            display: "flex", alignItems: "center", gap: 10, background: t.completed ? C.primarySoft : C.bg,
+            borderRadius: 10, padding: "9px 12px", borderRight: t.is_personal ? `3px solid ${C.honey}` : "none",
+          }}>
+            <span style={{
+              width: 18, height: 18, borderRadius: 5, flexShrink: 0,
+              background: t.completed ? C.primary : "white", border: `2px solid ${t.completed ? C.primary : C.line}`,
+              display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: 11,
+            }}>
+              {t.completed && "✓"}
+            </span>
+            <span style={{ fontFamily: bodyFont, fontSize: 12.5, color: C.ink, flex: 1, textDecoration: t.completed ? "line-through" : "none" }}>
+              {t.title}{t.time_label && <span style={{ color: C.inkSoft, fontSize: 11 }}> ({t.time_label})</span>}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function WeeklyScheduleCard({ apiFetch, childId }) {
   const [schedule, setSchedule] = useState(null);
   const [showFullWeek, setShowFullWeek] = useState(false);
@@ -683,6 +722,7 @@ function HomeTab({ apiFetch, childId, notifications, medicalNotes }) {
       {error && <ErrorNote message={error} />}
       <MedicalAlertBanner notes={medicalNotes} />
       <PaymentReminderBanner status={paymentStatus} />
+      <TasksCard apiFetch={apiFetch} childId={childId} />
       <WeeklyScheduleCard apiFetch={apiFetch} childId={childId} />
       <AnnouncementsCard announcements={announcements} />
       <TripsCard apiFetch={apiFetch} childId={childId} />

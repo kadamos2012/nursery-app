@@ -336,6 +336,28 @@ class WeeklyScheduleItem(db.Model):
     school_class = db.relationship("SchoolClass")
 
 
+class DailyTask(db.Model):
+    """A checkbox task for a specific day — either class-wide (auto-generated from
+    the weekly schedule) or child-specific (medication/appointment set by the owner
+    or spawned from an acknowledged parent special request)."""
+    id = db.Column(db.Integer, primary_key=True)
+    class_id = db.Column(db.Integer, db.ForeignKey("school_class.id"), nullable=False)
+    child_id = db.Column(db.Integer, db.ForeignKey("child.id"), nullable=True)  # None = class-wide task
+    title = db.Column(db.String(200), nullable=False)
+    time_label = db.Column(db.String(30), nullable=True)
+    date = db.Column(db.Date, nullable=False, default=date.today)
+    source = db.Column(db.String(20), nullable=False, default="manual")  # "schedule" | "medication" | "manual" | "special_request"
+    special_request_id = db.Column(db.Integer, db.ForeignKey("special_request.id"), nullable=True)
+
+    completed = db.Column(db.Boolean, default=False)
+    completed_by_role = db.Column(db.String(10), nullable=True)  # "teacher" | "owner"
+    completed_by_name = db.Column(db.String(150), nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+    school_class = db.relationship("SchoolClass")
+    child = db.relationship("Child")
+
+
 class SpecialRequest(db.Model):
     """A note from a parent to the teacher/owner about their child (medication time,
     specific clothing needed, etc.), with an acknowledgement flow."""

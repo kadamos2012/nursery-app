@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>مهام اليوم</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@700;800&family=Tajawal:wght@400;500;700&display=swap');
+    * { box-sizing: border-box; }
+    body { font-family: 'Tajawal', sans-serif; background: #F4F7F1; margin: 0; padding-bottom: 40px; }
+    header { background: #2F5D50; color: white; padding: 16px; display: flex; align-items: center; gap: 10px; }
+    header a { color: white; text-decoration: none; font-size: 18px; }
+    header h1 { font-family: 'Cairo', sans-serif; font-size: 16px; margin: 0; }
+    .section { padding: 16px; }
+    .section h2 { font-size: 13px; color: #5B6B5E; margin: 0 0 10px; }
+    .task {
+      display: flex; align-items: center; gap: 12px; background: white; border-radius: 14px;
+      padding: 12px 14px; margin-bottom: 8px; box-shadow: 0 2px 8px rgba(47,93,80,0.05);
+    }
+    .task.done { background: #DCEAE3; }
+    .task.medication { border-right: 3px solid #E7A93B; }
+    .checkbox {
+      width: 24px; height: 24px; border-radius: 8px; border: 2px solid #E4E9E1; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 15px; color: white;
+    }
+    .checkbox.checked { background: #2F5D50; border-color: #2F5D50; }
+    .task-title { font-size: 13.5px; color: #1F2A22; flex: 1; }
+    .task.done .task-title { text-decoration: line-through; color: #5B6B5E; }
+    .task-meta { font-size: 10.5px; color: #5B6B5E; }
+    form { margin: 0; }
+    button.task-btn { background: none; border: none; padding: 0; cursor: pointer; width: 100%; text-align: right; display: flex; align-items: center; gap: 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="{{ url_for('teacher_dashboard') }}">→</a>
+    <h1>مهام اليوم — {{ today.strftime('%d/%m/%Y') }}</h1>
+  </header>
+
+  <div class="section">
+    <h2>مهام الفصل (من الجدول الأسبوعي)</h2>
+    {% if not class_tasks %}
+      <p style="font-size: 12.5px; color: #5B6B5E;">مفيش مهام مسجلة النهاردة</p>
+    {% endif %}
+    {% for t in class_tasks %}
+    <form method="POST" action="{{ url_for('teacher_toggle_task', task_id=t.id) }}">
+      <button type="submit" class="task-btn">
+        <div class="task {{ 'done' if t.completed }}" style="flex:1;">
+          <span class="checkbox {{ 'checked' if t.completed }}">{{ '✓' if t.completed }}</span>
+          <span class="task-title">{{ t.title }}{% if t.time_label %} <span class="task-meta">— {{ t.time_label }}</span>{% endif %}</span>
+        </div>
+      </button>
+    </form>
+    {% endfor %}
+  </div>
+
+  <div class="section">
+    <h2>مهام خاصة بأطفال (أدوية / مواعيد)</h2>
+    {% if not child_tasks %}
+      <p style="font-size: 12.5px; color: #5B6B5E;">مفيش مهام خاصة النهاردة</p>
+    {% endif %}
+    {% for t in child_tasks %}
+    <form method="POST" action="{{ url_for('teacher_toggle_task', task_id=t.id) }}">
+      <button type="submit" class="task-btn">
+        <div class="task medication {{ 'done' if t.completed }}" style="flex:1;">
+          <span class="checkbox {{ 'checked' if t.completed }}">{{ '✓' if t.completed }}</span>
+          <span class="task-title">
+            {{ t.child.name }} — {{ t.title }}{% if t.time_label %} <span class="task-meta">({{ t.time_label }})</span>{% endif %}
+            {% if t.completed %}<div class="task-meta">تم بواسطة {{ t.completed_by_name }}</div>{% endif %}
+          </span>
+        </div>
+      </button>
+    </form>
+    {% endfor %}
+  </div>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{% extends "owner_base.html" %}
+{% block header_title %}مهام المعلمات — {{ today.strftime('%d/%m/%Y') }}{% endblock %}
+{% set active = "tasks" %}
+{% block content %}
+{% if not by_class %}
+<div class="card"><p style="font-size: 13px; color: #5B6B5E;">مفيش مهام مسجلة النهاردة لأي فصل</p></div>
+{% endif %}
+
+{% for class_id, data in by_class.items() %}
+<div class="card">
+  <h2>فصل {{ data.class_name }}</h2>
+  <div style="display: flex; flex-direction: column; gap: 8px;">
+    {% for t in data.tasks %}
+    <form method="POST">
+      <input type="hidden" name="task_id" value="{{ t.id }}">
+      <button type="submit" style="width: 100%; text-align: right; background: {{ '#DCEAE3' if t.completed else '#F4F7F1' }}; border: none; border-radius: 10px; padding: 10px 12px; cursor: pointer; display: flex; align-items: center; gap: 10px;">
+        <span style="width: 20px; height: 20px; border-radius: 6px; background: {{ '#2F5D50' if t.completed else 'white' }}; border: 2px solid {{ '#2F5D50' if t.completed else '#E4E9E1' }}; display:flex; align-items:center; justify-content:center; color:white; font-size:12px; flex-shrink:0;">{{ '✓' if t.completed }}</span>
+        <span style="font-size: 12.5px; color: #1F2A22; flex: 1; text-decoration: {{ 'line-through' if t.completed }};">
+          {% if t.child %}{{ t.child.name }} — {% endif %}{{ t.title }}
+          {% if t.time_label %}<span style="color:#5B6B5E; font-size:11px;"> ({{ t.time_label }})</span>{% endif %}
+          {% if t.completed %}<div style="font-size:10px; color:#5B6B5E;">تم بواسطة {{ t.completed_by_name }} ({{ 'المعلمة' if t.completed_by_role == 'teacher' else 'المالكة' }})</div>{% endif %}
+        </span>
+      </button>
+    </form>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

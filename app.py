@@ -13,7 +13,7 @@ from models import (
     Owner, Employee, SalaryPayment, Expense, Activity, Addon, ChildAddon,
     PaymentMethod, Advance, ExpenseCategory, Announcement,
     Trip, TripCostItem, TripClass, TripRegistration,
-    EnrollmentRequest, ClassPhoto, SpecialRequest, TeacherClass, WeeklyScheduleItem
+    EnrollmentRequest, ClassPhoto, SpecialRequest, TeacherClass, WeeklyScheduleItem, DailyTask
 )
 from pywebpush import webpush, WebPushException
 import json as json_lib
@@ -132,6 +132,25 @@ def compute_child_expected_fee(child):
     else:
         discount = 0
     return max(subtotal - discount, 0)
+
+
+def ensure_todays_class_tasks(class_id):
+    """Auto-generates today's checklist tasks for a class from its weekly schedule,
+    if they don't already exist. No manual entry needed from the teacher."""
+    today = date.today()
+    weekday = (today.weekday() + 1) % 7  # convert Python's Mon=0 to Sun=0
+
+    already_generated = DailyTask.query.filter_by(class_id=class_id, date=today, source="schedule").first()
+    if already_generated:
+        return
+
+    schedule_items = WeeklyScheduleItem.query.filter_by(class_id=class_id, day_of_week=weekday).order_by(WeeklyScheduleItem.sort_order).all()
+    for item in schedule_items:
+        db.session.add(DailyTask(
+            class_id=class_id, title=item.activity, time_label=item.time_label,
+            date=today, source="schedule",
+        ))
+    db.session.commit()
 
 
 def teacher_class_ids(teacher):
@@ -516,6 +535,29 @@ def child_weekly_schedule(child_id):
     })
 
 
+@app.route("/api/child/<int:child_id>/tasks-today")
+@login_required
+def child_tasks_today(child_id):
+    if current_role() == "parent" and not child_belongs_to_parent(child_id, current_user.id):
+        return jsonify({"error": "غير مصرح"}), 403
+
+    child = Child.query.get_or_404(child_id)
+    today = date.today()
+    ensure_todays_class_tasks(child.class_id)
+
+    tasks = DailyTask.query.filter(
+        DailyTask.date == today,
+        DailyTask.class_id == child.class_id,
+        (DailyTask.child_id == child_id) | (DailyTask.child_id.is_(None)),
+    ).order_by(DailyTask.time_label).all()
+
+    return jsonify([{
+        "id": t.id, "title": t.title, "time_label": t.time_label,
+        "is_personal": t.child_id is not None, "completed": t.completed,
+        "completed_by_name": t.completed_by_name,
+    } for t in tasks])
+
+
 @app.route("/api/child/<int:child_id>/messages", methods=["GET", "POST"])
 @login_required
 def child_messages(child_id):
@@ -745,6 +787,14 @@ def teacher_acknowledge_request(req_id):
     req.acknowledged_by_role = "teacher"
     req.acknowledged_by_name = current_user.name
     req.acknowledged_at = datetime.utcnow()
+
+    existing_task = DailyTask.query.filter_by(special_request_id=req.id).first()
+    if not existing_task:
+        db.session.add(DailyTask(
+            class_id=req.child.class_id, child_id=req.child_id, title=req.text,
+            date=date.today(), source="special_request", special_request_id=req.id,
+        ))
+
     db.session.commit()
 
     notify_child_parents(req.child_id, "وصل طلبك ✅", f"المعلمة {current_user.name} اطّلعت على طلبك: {req.text}")
@@ -758,6 +808,54 @@ def teacher_acknowledge_request(req_id):
 
 def require_owner():
     return current_role() == "owner"
+
+
+@app.route("/teacher/tasks")
+@login_required
+def teacher_tasks():
+    if current_role() != "teacher":
+        return redirect(url_for("unified_login"))
+
+    class_ids = teacher_class_ids(current_user)
+    today = date.today()
+    for cid in class_ids:
+        ensure_todays_class_tasks(cid)
+
+    class_tasks = DailyTask.query.filter(
+        DailyTask.class_id.in_(class_ids), DailyTask.date == today, DailyTask.child_id.is_(None)
+    ).order_by(DailyTask.class_id, DailyTask.time_label).all() if class_ids else []
+
+    child_tasks = DailyTask.query.filter(
+        DailyTask.class_id.in_(class_ids), DailyTask.date == today, DailyTask.child_id.isnot(None)
+    ).order_by(DailyTask.time_label).all() if class_ids else []
+
+    return render_template("teacher_tasks.html", class_tasks=class_tasks, child_tasks=child_tasks, today=today)
+
+
+@app.route("/teacher/tasks/<int:task_id>/toggle", methods=["POST"])
+@login_required
+def teacher_toggle_task(task_id):
+    if current_role() != "teacher":
+        return redirect(url_for("unified_login"))
+
+    task = DailyTask.query.get_or_404(task_id)
+    class_ids = teacher_class_ids(current_user)
+    if class_ids and task.class_id not in class_ids:
+        return redirect(url_for("teacher_tasks"))
+
+    task.completed = not task.completed
+    if task.completed:
+        task.completed_by_role = "teacher"
+        task.completed_by_name = current_user.name
+        task.completed_at = datetime.utcnow()
+        if task.child_id:
+            notify_child_parents(task.child_id, "تم ✅", f"المعلمة {current_user.name} أكدت تنفيذ: {task.title}")
+    else:
+        task.completed_by_role = None
+        task.completed_by_name = None
+        task.completed_at = None
+    db.session.commit()
+    return redirect(url_for("teacher_tasks"))
 
 
 @app.route("/teacher/birthdays")
@@ -1519,6 +1617,60 @@ def owner_child_addons(child_id):
     return render_template("owner_child_addons.html", child=child, all_addons=all_addons, active_ids=active_ids)
 
 
+@app.route("/owner/child/<int:child_id>/tasks", methods=["POST"])
+@login_required
+def owner_add_child_task(child_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    child = Child.query.get_or_404(child_id)
+    title = request.form.get("title", "").strip()
+    time_label = request.form.get("time_label", "").strip()
+    if title:
+        db.session.add(DailyTask(
+            class_id=child.class_id, child_id=child_id, title=title,
+            time_label=time_label, date=date.today(), source="medication",
+        ))
+        db.session.commit()
+    return redirect(request.referrer or url_for("owner_class_students", class_id=child.class_id))
+
+
+@app.route("/owner/tasks", methods=["GET", "POST"])
+@login_required
+def owner_tasks():
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    today = date.today()
+    for c in SchoolClass.query.all():
+        ensure_todays_class_tasks(c.id)
+
+    if request.method == "POST":
+        task_id = request.form.get("task_id")
+        task = DailyTask.query.get_or_404(task_id)
+        task.completed = not task.completed
+        if task.completed:
+            task.completed_by_role = "owner"
+            task.completed_by_name = current_user.name
+            task.completed_at = datetime.utcnow()
+            if task.child_id:
+                notify_child_parents(task.child_id, "تم ✅", f"إدارة الحضانة أكدت تنفيذ: {task.title}")
+        else:
+            task.completed_by_role = None
+            task.completed_by_name = None
+            task.completed_at = None
+        db.session.commit()
+        return redirect(url_for("owner_tasks"))
+
+    tasks = DailyTask.query.filter_by(date=today).order_by(DailyTask.class_id, DailyTask.time_label).all()
+    by_class = {}
+    for t in tasks:
+        by_class.setdefault(t.class_id, {"class_name": t.school_class.name, "tasks": []})
+        by_class[t.class_id]["tasks"].append(t)
+
+    return render_template("owner_tasks.html", by_class=by_class, today=today)
+
+
 @app.route("/owner/child/<int:child_id>/profile", methods=["GET", "POST"])
 @login_required
 def owner_child_profile(child_id):
@@ -1761,8 +1913,8 @@ def owner_dues():
     for p in unpaid:
         if p.child.archived:
             continue
-        by_child.setdefault(p.child_id, {"child": p.child, "items": [], "total": 0.0})
-        by_child[p.child_id]["items"].append(p)
+        by_child.setdefault(p.child_id, {"child": p.child, "payments": [], "total": 0.0})
+        by_child[p.child_id]["payments"].append(p)
         by_child[p.child_id]["total"] += float(p.amount)
 
     rows = sorted(by_child.values(), key=lambda r: r["total"], reverse=True)

@@ -80,6 +80,11 @@
             <div style="font-size:10.5px;color:#B23A22;font-weight:700;margin-top:2px;">⚠ يوجد ملاحظة طبية</div>
           {% endif %}
           <a class="row-link" style="font-size: 11px;" href="{{ url_for('owner_child_profile', child_id=s.id) }}">الصورة/الطبي ←</a>
+          <form method="POST" action="{{ url_for('owner_add_child_task', child_id=s.id) }}" style="margin-top: 6px; display:flex; gap:4px;">
+            <input type="text" name="title" placeholder="موعد دوا/مهمة" style="font-size:10.5px; padding:4px 6px; width:90px;">
+            <input type="text" name="time_label" placeholder="الوقت" style="font-size:10.5px; padding:4px 6px; width:50px;">
+            <button type="submit" style="font-size: 10px; background: #DCEAE3; color:#2F5D50; border: none; border-radius: 8px; padding: 4px 8px; cursor: pointer;">إضافة</button>
+          </form>
           <form method="POST" action="{{ url_for('owner_toggle_archive', child_id=s.id) }}" style="margin-top: 4px;">
             <button type="submit" style="font-size: 10.5px; background: none; border: 1px solid #E4E9E1; border-radius: 8px; padding: 4px 8px; cursor: pointer; color: {{ '#2F5D50' if show_archived else '#B23A22' }};">
               {{ 'إلغاء الأرشفة' if show_archived else 'أرشفة' }}

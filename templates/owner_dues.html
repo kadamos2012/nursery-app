@@ -22,7 +22,7 @@
         <td>{{ r.child.name }}</td>
         <td>{{ r.child.school_class.name }}</td>
         <td style="font-size: 12px;">
-          {% for p in r.items %}
+          {% for p in r.payments %}
             {{ p.month }}/{{ p.year }} ({{ "%.0f"|format(p.amount) }} ج){% if not loop.last %}، {% endif %}
           {% endfor %}
         </td>
