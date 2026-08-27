@@ -551,11 +551,12 @@ class Addon(db.Model):
 
 
 class ChildAddon(db.Model):
-    """Which additional subscriptions a specific child is enrolled in."""
+    """Which additional subscriptions a specific child is enrolled in, for a
+    specific period (e.g. transport from Sept to Dec) — not necessarily forever."""
     id = db.Column(db.Integer, primary_key=True)
     child_id = db.Column(db.Integer, db.ForeignKey("child.id"), nullable=False)
     addon_id = db.Column(db.Integer, db.ForeignKey("addon.id"), nullable=False)
+    start_date = db.Column(db.Date, nullable=False, default=date.today)
+    end_date = db.Column(db.Date, nullable=True)  # None = ongoing, no fixed end
 
     addon = db.relationship("Addon")
-
-    __table_args__ = (db.UniqueConstraint("child_id", "addon_id", name="uq_child_addon"),)

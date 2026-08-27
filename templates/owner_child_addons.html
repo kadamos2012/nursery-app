@@ -5,24 +5,58 @@
 <a class="row-link" href="{{ url_for('owner_class_students', class_id=child.class_id) }}">← رجوع لطلبة الفصل</a>
 
 <div class="card" style="margin-top: 14px;">
-  <h2>اختاري الاشتراكات الإضافية لـ {{ child.name }}</h2>
+  <h2>إضافة اشتراك جديد لفترة محددة</h2>
   {% if not all_addons %}
-    <p style="font-size: 13px; color: #5B6B5E;">
-      لسه مفيش اشتراكات إضافية في الكتالوج. <a class="row-link" href="{{ url_for('owner_addons') }}">أضيفي واحد الأول ←</a>
-    </p>
+    <p style="font-size: 13px; color: #5B6B5E;">لسه مفيش اشتراكات إضافية في الكتالوج. <a class="row-link" href="{{ url_for('owner_addons') }}">أضيفي واحد الأول ←</a></p>
   {% else %}
-  <form method="POST">
-    <div style="display: flex; flex-direction: column; gap: 10px;">
+  <form class="inline" method="POST">
+    <select name="addon_id" required>
+      <option value="">اختاري الاشتراك</option>
       {% for a in all_addons %}
-      <label style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #E4E9E1; border-radius: 10px;">
-        <input type="checkbox" name="addon_ids" value="{{ a.id }}" {{ 'checked' if a.id in active_ids }} style="width: auto;">
-        <span style="flex: 1; font-size: 13.5px;">{{ a.name }}</span>
-        <span style="font-size: 12.5px; color: #5B6B5E;">{{ "%.0f"|format(a.monthly_fee) }} ج/شهر</span>
-      </label>
+        <option value="{{ a.id }}">{{ a.name }} — {{ "%.0f"|format(a.monthly_fee) }} ج/شهر</option>
       {% endfor %}
-    </div>
-    <button type="submit" class="primary" style="margin-top: 16px;">حفظ</button>
+    </select>
+    <label style="font-size: 12px; color: #5B6B5E;">من تاريخ</label>
+    <input type="date" name="start_date" value="{{ today.isoformat() }}" required>
+    <label style="font-size: 12px; color: #5B6B5E;">إلى تاريخ (اختياري، سيبيه فاضي لو مستمر)</label>
+    <input type="date" name="end_date">
+    <button type="submit" class="primary">إضافة الاشتراك</button>
   </form>
   {% endif %}
+</div>
+
+<div class="card">
+  <h2>الاشتراكات ({{ subscriptions|length }})</h2>
+  {% if not subscriptions %}
+    <p style="font-size: 13px; color: #5B6B5E;">لسه مفيش اشتراكات مسجلة</p>
+  {% endif %}
+  <table>
+    <thead><tr><th>الاشتراك</th><th>من</th><th>إلى</th><th>الحالة</th><th></th></tr></thead>
+    <tbody>
+      {% for s in subscriptions %}
+      {% set is_active = s.start_date <= today and (not s.end_date or s.end_date >= today) %}
+      <tr style="{{ '' if is_active else 'opacity:0.6;' }}">
+        <td>{{ s.addon.name }}</td>
+        <td>{{ s.start_date.strftime('%d/%m/%Y') }}</td>
+        <td>{{ s.end_date.strftime('%d/%m/%Y') if s.end_date else 'مستمر' }}</td>
+        <td>
+          <span class="badge {{ 'paid' if is_active else 'due' }}">{{ 'نشط' if is_active else 'منتهي' }}</span>
+        </td>
+        <td>
+          {% if is_active %}
+          <form method="POST" action="{{ url_for('owner_end_child_addon', subscription_id=s.id) }}" style="display:flex; gap:4px;">
+            <input type="date" name="end_date" value="{{ today.isoformat() }}" style="padding:4px 6px; font-size:10.5px;">
+            <button type="submit" style="font-size:10px; padding:4px 8px; background:#FBEBCB; color:#946515; border:none; border-radius:8px;">إنهاء</button>
+          </form>
+          {% else %}
+          <form method="POST" action="{{ url_for('owner_delete_child_addon', subscription_id=s.id) }}">
+            <button type="submit" style="font-size:10px; padding:4px 8px; background:none; color:#B23A22; border:none;">حذف</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
 {% endblock %}

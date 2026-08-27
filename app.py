@@ -209,7 +209,11 @@ def compute_child_expected_fee(child, on_date=None, month=None, year=None):
     year = year or on_date.year
 
     base_fee = get_effective_class_fee(child.class_id, child.subscription_type, on_date)
-    addons_total = sum(float(ca.addon.monthly_fee) for ca in ChildAddon.query.filter_by(child_id=child.id).all())
+    active_addons = ChildAddon.query.filter(
+        ChildAddon.child_id == child.id, ChildAddon.start_date <= on_date,
+        (ChildAddon.end_date.is_(None)) | (ChildAddon.end_date >= on_date),
+    ).all()
+    addons_total = sum(float(ca.addon.monthly_fee) for ca in active_addons)
     overtime_total = db.session.query(db.func.coalesce(db.func.sum(OvertimeCharge.amount), 0)).filter(
         OvertimeCharge.child_id == child.id,
         db.extract("month", OvertimeCharge.date) == month, db.extract("year", OvertimeCharge.date) == year,
@@ -1593,7 +1597,10 @@ def owner_class_students(class_id):
     for s in students:
         links = ParentChild.query.filter_by(child_id=s.id).all()
         parents_by_child[s.id] = [Parent.query.get(l.parent_id) for l in links]
-        child_addons = ChildAddon.query.filter_by(child_id=s.id).all()
+        child_addons = ChildAddon.query.filter(
+            ChildAddon.child_id == s.id, ChildAddon.start_date <= today,
+            (ChildAddon.end_date.is_(None)) | (ChildAddon.end_date >= today),
+        ).all()
         addons_by_child[s.id] = [ca.addon for ca in child_addons]
         total_due_by_child[s.id] = compute_child_expected_fee(s)
         base_fee_by_child[s.id] = get_effective_class_fee(class_id, s.subscription_type)
@@ -1974,22 +1981,49 @@ def owner_child_addons(child_id):
     child = Child.query.get_or_404(child_id)
 
     if request.method == "POST":
-        selected_ids = set(int(x) for x in request.form.getlist("addon_ids"))
-        current_links = ChildAddon.query.filter_by(child_id=child_id).all()
-        current_ids = {link.addon_id for link in current_links}
-
-        for link in current_links:
-            if link.addon_id not in selected_ids:
-                db.session.delete(link)
-        for addon_id in selected_ids - current_ids:
-            db.session.add(ChildAddon(child_id=child_id, addon_id=addon_id))
-
-        db.session.commit()
-        return redirect(url_for("owner_class_students", class_id=child.class_id))
+        addon_id = request.form.get("addon_id")
+        start_date = request.form.get("start_date") or date.today().isoformat()
+        end_date = request.form.get("end_date") or None
+        if addon_id:
+            db.session.add(ChildAddon(
+                child_id=child_id, addon_id=int(addon_id),
+                start_date=date.fromisoformat(start_date),
+                end_date=date.fromisoformat(end_date) if end_date else None,
+            ))
+            db.session.commit()
+        return redirect(url_for("owner_child_addons", child_id=child_id))
 
     all_addons = Addon.query.filter_by(active=True).all()
-    active_ids = {ca.addon_id for ca in ChildAddon.query.filter_by(child_id=child_id).all()}
-    return render_template("owner_child_addons.html", child=child, all_addons=all_addons, active_ids=active_ids)
+    subscriptions = ChildAddon.query.filter_by(child_id=child_id).order_by(ChildAddon.start_date.desc()).all()
+    today = date.today()
+    return render_template("owner_child_addons.html", child=child, all_addons=all_addons, subscriptions=subscriptions, today=today)
+
+
+@app.route("/owner/child-addons/<int:subscription_id>/end", methods=["POST"])
+@login_required
+def owner_end_child_addon(subscription_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    sub = ChildAddon.query.get_or_404(subscription_id)
+    child_id = sub.child_id
+    end_date = request.form.get("end_date") or date.today().isoformat()
+    sub.end_date = date.fromisoformat(end_date)
+    db.session.commit()
+    return redirect(url_for("owner_child_addons", child_id=child_id))
+
+
+@app.route("/owner/child-addons/<int:subscription_id>/delete", methods=["POST"])
+@login_required
+def owner_delete_child_addon(subscription_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    sub = ChildAddon.query.get_or_404(subscription_id)
+    child_id = sub.child_id
+    db.session.delete(sub)
+    db.session.commit()
+    return redirect(url_for("owner_child_addons", child_id=child_id))
 
 
 @app.route("/owner/child/<int:child_id>/tasks", methods=["POST"])
