@@ -218,6 +218,19 @@ class Advance(db.Model):
     deducted = db.Column(db.Boolean, default=False)
 
 
+class Announcement(db.Model):
+    """A notice posted by the owner, shown to parents of a specific class or the whole nursery."""
+    id = db.Column(db.Integer, primary_key=True)
+    nursery_id = db.Column(db.Integer, db.ForeignKey("nursery.id"), nullable=False)
+    class_id = db.Column(db.Integer, db.ForeignKey("school_class.id"), nullable=True)  # None = whole nursery
+    title = db.Column(db.String(150), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by_owner_id = db.Column(db.Integer, db.ForeignKey("owner.id"), nullable=True)
+
+    school_class = db.relationship("SchoolClass")
+
+
 class ExpenseCategory(db.Model):
     """Editable catalog of expense line items (rent, bills, supplies, etc.)."""
     id = db.Column(db.Integer, primary_key=True)

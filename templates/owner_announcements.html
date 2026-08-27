@@ -1,0 +1,45 @@
+{% extends "owner_base.html" %}
+{% block header_title %}الإعلانات{% endblock %}
+{% set active = "announcements" %}
+{% block content %}
+<div class="card">
+  <h2>نشر إعلان جديد</h2>
+  <form class="inline" method="POST">
+    <select name="class_id">
+      <option value="">كل الحضانة (كل الفصول)</option>
+      {% for c in classes %}
+        <option value="{{ c.id }}">فصل {{ c.name }} فقط</option>
+      {% endfor %}
+    </select>
+    <input type="text" name="title" placeholder="عنوان الإعلان" required>
+    <textarea name="body" rows="4" placeholder="نص الإعلان..." required></textarea>
+    <button type="submit" class="primary">نشر الإعلان</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>الإعلانات المنشورة ({{ announcements|length }})</h2>
+  {% if not announcements %}
+    <p style="font-size: 13px; color: #5B6B5E;">لسه مفيش إعلانات منشورة</p>
+  {% endif %}
+  <div style="display: flex; flex-direction: column; gap: 10px;">
+    {% for a in announcements %}
+    <div style="border: 1px solid #E4E9E1; border-radius: 12px; padding: 12px 14px;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+        <div style="font-family: 'Cairo', sans-serif; font-weight: 700; font-size: 13.5px;">{{ a.title }}</div>
+        <span class="badge {{ 'honey' if a.class_id else 'paid' }}" style="background: {{ '#FBEBCB' if a.class_id else '#DCEAE3' }}; color: {{ '#946515' if a.class_id else '#2F5D50' }};">
+          {{ 'فصل ' + a.school_class.name if a.class_id else 'كل الحضانة' }}
+        </span>
+      </div>
+      <p style="font-size: 12.5px; color: #1F2A22; margin: 0 0 8px; line-height: 1.6;">{{ a.body }}</p>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 10.5px; color: #5B6B5E;">{{ a.created_at.strftime('%d/%m/%Y') }}</span>
+        <form method="POST" action="{{ url_for('owner_delete_announcement', announcement_id=a.id) }}" onsubmit="return confirm('حذف الإعلان؟');">
+          <button type="submit" style="background:none; border:none; color:#B23A22; font-size:11px; cursor:pointer;">حذف</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

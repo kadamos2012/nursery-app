@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   Home, BookOpen, CalendarCheck, MessageCircle, Sun, Moon, UtensilsCrossed,
   Smile, Clock, CreditCard, Send, CheckCircle2, Settings, LogOut,
-  Loader2, AlertCircle, Bell, BellOff
+  Loader2, AlertCircle, Bell, BellOff, Megaphone
 } from "lucide-react";
 
 const C = {
@@ -365,9 +365,33 @@ function PaymentReminderBanner({ status }) {
   );
 }
 
+function AnnouncementsCard({ announcements }) {
+  if (!announcements || announcements.length === 0) return null;
+  return (
+    <div style={{ background: C.card, borderRadius: 18, padding: 16, boxShadow: "0 2px 10px rgba(47,93,80,0.06)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <Megaphone size={17} color={C.primary} />
+        <span style={{ fontFamily: displayFont, fontWeight: 700, fontSize: 14, color: C.ink }}>إعلانات الحضانة</span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {announcements.map((a) => (
+          <div key={a.id} style={{ background: C.bg, borderRadius: 12, padding: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+              <span style={{ fontFamily: bodyFont, fontWeight: 700, fontSize: 12.5, color: C.ink }}>{a.title}</span>
+              <span style={{ fontFamily: bodyFont, fontSize: 9.5, color: C.inkSoft }}>{a.scope}</span>
+            </div>
+            <p style={{ fontFamily: bodyFont, fontSize: 12, color: C.ink, margin: 0, lineHeight: 1.6 }}>{a.body}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function HomeTab({ apiFetch, childId, notifications, medicalNotes }) {
   const [today, setToday] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState(null);
+  const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -377,7 +401,8 @@ function HomeTab({ apiFetch, childId, notifications, medicalNotes }) {
     Promise.all([
       apiFetch(`/api/child/${childId}/today`),
       apiFetch(`/api/child/${childId}/payment-status`).catch(() => null),
-    ]).then(([t, p]) => { setToday(t); setPaymentStatus(p); })
+      apiFetch(`/api/child/${childId}/announcements`).catch(() => []),
+    ]).then(([t, p, a]) => { setToday(t); setPaymentStatus(p); setAnnouncements(a || []); })
       .catch((e) => setError(e.message)).finally(() => setLoading(false));
   }, [childId, apiFetch]);
 
@@ -388,6 +413,7 @@ function HomeTab({ apiFetch, childId, notifications, medicalNotes }) {
       {error && <ErrorNote message={error} />}
       <MedicalAlertBanner notes={medicalNotes} />
       <PaymentReminderBanner status={paymentStatus} />
+      <AnnouncementsCard announcements={announcements} />
       <DayPathCard today={today} />
     </div>
   );

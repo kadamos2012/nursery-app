@@ -11,7 +11,7 @@ from models import (
     db, Nursery, SchoolClass, Teacher, Parent, Child, ParentChild,
     DailyLog, AttendanceRecord, Payment, Message, PushSubscription,
     Owner, Employee, SalaryPayment, Expense, Activity, Addon, ChildAddon,
-    PaymentMethod, Advance, ExpenseCategory
+    PaymentMethod, Advance, ExpenseCategory, Announcement
 )
 from pywebpush import webpush, WebPushException
 import json as json_lib
@@ -276,6 +276,24 @@ def child_payment_status(child_id):
     return jsonify({"month": today.month, "year": today.year, "amount": str(expected), "paid": False})
 
 
+@app.route("/api/child/<int:child_id>/announcements")
+@login_required
+def child_announcements(child_id):
+    if current_role() == "parent" and not child_belongs_to_parent(child_id, current_user.id):
+        return jsonify({"error": "غير مصرح"}), 403
+
+    child = Child.query.get_or_404(child_id)
+    announcements = Announcement.query.filter(
+        (Announcement.class_id.is_(None)) | (Announcement.class_id == child.class_id)
+    ).order_by(Announcement.created_at.desc()).limit(10).all()
+
+    return jsonify([{
+        "id": a.id, "title": a.title, "body": a.body,
+        "created_at": a.created_at.isoformat(),
+        "scope": "كل الحضانة" if not a.class_id else a.school_class.name,
+    } for a in announcements])
+
+
 @app.route("/api/child/<int:child_id>/messages", methods=["GET", "POST"])
 @login_required
 def child_messages(child_id):
@@ -495,6 +513,41 @@ def owner_dashboard():
         salaries_total=salaries_total, activities_cost=activities_cost, net=net,
         classes_count=classes_count, students_count=students_count, staff_count=staff_count,
     )
+
+
+@app.route("/owner/announcements", methods=["GET", "POST"])
+@login_required
+def owner_announcements():
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        body = request.form.get("body", "").strip()
+        class_id = request.form.get("class_id") or None
+        if title and body:
+            db.session.add(Announcement(
+                nursery_id=current_user.nursery_id, class_id=class_id,
+                title=title, body=body, created_by_owner_id=current_user.id,
+            ))
+            db.session.commit()
+        return redirect(url_for("owner_announcements"))
+
+    classes = SchoolClass.query.all()
+    announcements = Announcement.query.order_by(Announcement.created_at.desc()).all()
+    return render_template("owner_announcements.html", classes=classes, announcements=announcements)
+
+
+@app.route("/owner/announcements/<int:announcement_id>/delete", methods=["POST"])
+@login_required
+def owner_delete_announcement(announcement_id):
+    if not require_owner():
+        return redirect(url_for("unified_login"))
+
+    announcement = Announcement.query.get_or_404(announcement_id)
+    db.session.delete(announcement)
+    db.session.commit()
+    return redirect(url_for("owner_announcements"))
 
 
 @app.route("/owner/birthdays")
